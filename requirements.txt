@@ -15,4 +15,5 @@ PyYAML
 requests
 unstructured
 pi_heif
+unstructured_inference
 # Add any other dependencies below as needed
