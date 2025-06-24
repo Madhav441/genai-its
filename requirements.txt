@@ -16,4 +16,5 @@ requests
 unstructured
 pi_heif
 unstructured_inference
+pdf2image
 # Add any other dependencies below as needed
