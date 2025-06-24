@@ -2,6 +2,7 @@ streamlit
 python-dotenv
 langchain_community
 langchain
+langchain_groq
 faiss-cpu
 pandas
 numpy
