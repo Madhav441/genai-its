@@ -13,4 +13,5 @@ groq
 pillow
 PyYAML
 requests
+unstructured
 # Add any other dependencies below as needed
