@@ -1,0 +1,16 @@
+streamlit
+python-dotenv
+langchain_community
+langchain
+faiss-cpu
+pandas
+numpy
+PyPDF2
+pdfplumber
+tiktoken
+openai
+groq
+pillow
+PyYAML
+requests
+# Add any other dependencies below as needed

@@ -1,0 +1,15 @@
+[server]
+headless = true
+runOnSave = true
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+magicEnabled = false
+
+[theme]
+base = "dark"
+
+[watcher]
+watcherType = "none"

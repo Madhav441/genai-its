@@ -1,0 +1,4 @@
+[project]
+name = "genai-its-models"
+version = "0.0.1"
+packages = ["1.3_models"]
