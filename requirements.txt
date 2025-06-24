@@ -19,4 +19,5 @@ pi_heif
 unstructured_inference
 pdf2image
 opencv-python
+unstructured_pytesseract
 # Add any other dependencies below as needed
