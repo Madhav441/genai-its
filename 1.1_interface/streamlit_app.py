@@ -287,6 +287,10 @@ elif st.session_state.page == 'student_login':
     st.title("Student Login")
     student_id = st.text_input("Enter your student ID or name")
     if student_id:
+        # Reset all user-specific session state on new login
+        for key in list(st.session_state.keys()):
+            if key not in ["page"]:
+                del st.session_state[key]
         st.session_state.student_id = student_id
         st.session_state.page = 'student_pre_survey'
         set_query_params()
