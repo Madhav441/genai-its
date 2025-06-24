@@ -167,6 +167,7 @@ if st.session_state.page == 'teacher':
         if subject and week and uploaded_pdf:
             # Save uploaded PDF to a temp location
             temp_pdf_path = os.path.join("data", "uploaded_pdfs", uploaded_pdf.name)
+            os.makedirs(os.path.dirname(temp_pdf_path), exist_ok=True)
             with open(temp_pdf_path, "wb") as f:
                 f.write(uploaded_pdf.read())
             import quiz_extractor
