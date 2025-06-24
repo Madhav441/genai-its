@@ -29,6 +29,18 @@ sys.path.extend(
 from document_loader import load_and_embed_pdf
 from quiz_extractor import extract_questions_from_pdf
 
+# Ensure all required data directories exist
+required_dirs = [
+    "data/finalised_quizzes",
+    "data/uploaded_pdfs",
+    "data/student_profiles",
+    "data/student_performance",
+    "data/global_kb",
+    "data/quiz_sessions"
+]
+for d in required_dirs:
+    os.makedirs(d, exist_ok=True)
+
 # ── Streamlit layout ──────────────────────────────────────────────────
 # Main entry page: login/role selection
 if 'page' not in st.session_state:
