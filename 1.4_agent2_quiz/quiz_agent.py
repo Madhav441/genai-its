@@ -134,29 +134,30 @@ class QuizAgent:
 
         q = self.quiz_data[self.current_q]
         q_id = str(q["id"])
-        # Check for 'next', 'continue', etc. and last score
         continue_phrases = ["next", "continue", "yes", "ready", "okay", "yep"]
         if user_clean in continue_phrases:
-            # If chat_history is empty or only contains the initial assistant message, reset to first question
-            if not chat_history or (len(chat_history) == 1 and chat_history[0]['role'] == 'assistant'):
-                self.current_q = 0
-                self.performance["current_q"] = 0
-                self.save_performance()
-                return self.present_question(self.quiz_data[0]), False
-            # If on last question, finish quiz and trigger Qualtrics 2
-            if self.current_q >= len(self.quiz_data) - 1:
-                self.current_q = len(self.quiz_data)
+            # Only allow continue if last answer was above a minimum threshold
+            last_score = self.performance.get("last_score", 0.0)
+            try:
+                last_score = float(last_score)
+            except Exception:
+                last_score = 0.0
+            if last_score >= 0.5:
+                # Allow moving to next question at any time (except after last)
+                if self.current_q >= len(self.quiz_data) - 1:
+                    self.current_q = len(self.quiz_data)
+                    self.performance["current_q"] = self.current_q
+                    self.save_performance()
+                    return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
+                self.current_q += 1
                 self.performance["current_q"] = self.current_q
                 self.save_performance()
-                return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
-            # Allow moving to next question at any time (except after last)
-            self.current_q += 1
-            self.performance["current_q"] = self.current_q
-            self.save_performance()
-            if self.current_q < len(self.quiz_data):
-                return self.present_question(self.quiz_data[self.current_q]), False
+                if self.current_q < len(self.quiz_data):
+                    return self.present_question(self.quiz_data[self.current_q]), False
+                else:
+                    return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
             else:
-                return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
+                return "You need to attempt the question and receive a score of at least 0.5 before moving on.", False
         # Go back a question if user types 'back', 'previous', or 'prev'
         back_phrases = ["back", "previous", "prev"]
         if user_clean in back_phrases:

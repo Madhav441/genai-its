@@ -301,6 +301,14 @@ elif st.session_state.page == 'student_pre_survey':
     st.sidebar.empty()
     st.title("Pre-Quiz Survey")
     st.markdown("Please complete the pre-quiz survey below before starting your quiz.")
+    # Check if survey already completed for this student/subject/week
+    survey_flag_path = None
+    if 'student_id' in st.session_state and 'student_subject' in st.session_state and 'student_week' in st.session_state:
+        survey_flag_path = os.path.join("data", "student_profiles", st.session_state.student_id, f"{st.session_state['student_subject']}_{st.session_state['student_week']}_pre_survey_done.flag")
+    if survey_flag_path and os.path.exists(survey_flag_path):
+        st.session_state.page = 'student_quiz'
+        set_query_params()
+        st.rerun()
     if PRE_QUIZ_SURVEY_URL:
         st.markdown(f"""
         <iframe src=\"{PRE_QUIZ_SURVEY_URL}\" width=\"100%\" height=\"600\" frameborder=\"0\"></iframe>
@@ -308,6 +316,11 @@ elif st.session_state.page == 'student_pre_survey':
     else:
         st.warning("Pre-quiz survey link is not configured.")
     if st.button("Continue to Quiz"):
+        # Mark survey as done for this student/subject/week
+        if survey_flag_path:
+            os.makedirs(os.path.dirname(survey_flag_path), exist_ok=True)
+            with open(survey_flag_path, "w") as f:
+                f.write("done")
         st.session_state.page = 'student_quiz'
         set_query_params()
         st.rerun()
