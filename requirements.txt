@@ -20,4 +20,7 @@ unstructured_inference
 pdf2image
 opencv-python
 unstructured_pytesseract
+PyDrive2
+google-cloud-firestore
+firebase-admin
 # Add any other dependencies below as needed
