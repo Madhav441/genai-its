@@ -1,5 +1,14 @@
 import os
 import json
+import streamlit as st
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# Initialize Firebase only once
+if not firebase_admin._apps:
+    cred = credentials.Certificate(dict(st.secrets["FIREBASE"]))
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 def get_groq_llm(model_name=None, temperature=None):
     # Loads model and temperature from .env, with agent-specific overrides
@@ -15,8 +24,7 @@ class QuizAgent:
         self.week = week
         self.student_id = student_id
         self.profile = profile
-        self.performance_path = os.path.join("data", "student_performance", f"{student_id}_{subject}_{week}.json")
-        os.makedirs(os.path.dirname(self.performance_path), exist_ok=True)
+        self.firestore_doc = f"student_performance/{student_id}_{subject}_{week}"
         self.load_performance()
         self.current_q = self.performance.get("current_q", 0)
         self.started = self.performance.get("started", False)
@@ -24,9 +32,10 @@ class QuizAgent:
         self.llm = get_groq_llm()
 
     def load_performance(self):
-        if os.path.exists(self.performance_path):
-            with open(self.performance_path, "r", encoding="utf-8") as f:
-                self.performance = json.load(f)
+        doc_ref = db.document(self.firestore_doc)
+        doc = doc_ref.get()
+        if doc.exists:
+            self.performance = doc.to_dict()
         else:
             self.performance = {
                 "answers": {},  # {q_id: [{"attempt": n, "answer": str, "feedback": str, "score": float}]}
@@ -36,8 +45,7 @@ class QuizAgent:
             }
 
     def save_performance(self):
-        with open(self.performance_path, "w", encoding="utf-8") as f:
-            json.dump(self.performance, f, indent=2)
+        db.document(self.firestore_doc).set(self.performance)
 
     def get_instructions(self):
         # More creative, agentic, and clear rules for students
