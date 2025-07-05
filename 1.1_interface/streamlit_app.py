@@ -383,6 +383,14 @@ elif st.session_state.page == 'student_quiz':
             st.session_state.last_displayed_index = 0
             with open(chat_history_path, "w", encoding="utf-8") as cf:
                 json.dump(chat_history, cf)
+            # Also reset quiz progress in Firestore
+            perf_doc_id = f"{st.session_state.student_id}_{subject}_{week}"
+            perf_ref = db.collection("student_performance").document(perf_doc_id)
+            perf = perf_ref.get().to_dict() if perf_ref.get().exists else None
+            if perf:
+                perf["current_q"] = 0
+                perf["last_score"] = 0.0
+                perf_ref.set(perf)
             st.rerun()
         st.markdown("---")
         # Only initialize with instructions/first question if chat_history is empty

@@ -151,7 +151,7 @@ class QuizAgent:
             except Exception:
                 last_score = 0.0
             if last_score >= 0.5:
-                # Allow moving to next question at any time (except after last)
+                # Only allow moving to next question if not on last
                 if self.current_q >= len(self.quiz_data) - 1:
                     self.current_q = len(self.quiz_data)
                     self.performance["current_q"] = self.current_q
@@ -165,6 +165,7 @@ class QuizAgent:
                 else:
                     return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
             else:
+                # Do NOT advance, must retry
                 return "You need to attempt the question and receive a score of at least 0.5 before moving on.", False
         # Go back a question if user types 'back', 'previous', or 'prev'
         back_phrases = ["back", "previous", "prev"]
