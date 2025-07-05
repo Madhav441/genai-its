@@ -1,6 +1,8 @@
 import os
 import json
 import streamlit as st
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Load survey URLs from environment
 PRE_QUIZ_SURVEY_URL = os.getenv("PRE_QUIZ_SURVEY_URL", "")
@@ -40,6 +42,28 @@ required_dirs = [
 ]
 for d in required_dirs:
     os.makedirs(d, exist_ok=True)
+
+# Initialize Firebase Admin SDK
+if not firebase_admin._apps:
+    cred = credentials.Certificate(dict(st.secrets["FIREBASE"]))
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+def save_quiz_to_firestore(subject, week, questions):
+    doc_id = f"{subject}_{week}"
+    db.collection("finalised_quizzes").document(doc_id).set({
+        "subject": subject,
+        "week": week,
+        "questions": questions
+    })
+
+def load_quiz_from_firestore(subject, week):
+    doc_id = f"{subject}_{week}"
+    doc = db.collection("finalised_quizzes").document(doc_id).get()
+    if doc.exists:
+        return doc.to_dict().get("questions", [])
+    else:
+        return []
 
 # ── Streamlit layout ──────────────────────────────────────────────────
 # Main entry page: login/role selection
@@ -128,32 +152,24 @@ if st.session_state.page == 'teacher':
     if mode == "Select Existing Quiz":
         # Only show subjects with at least one week containing quiz.json
         subjects = []
-        for subj in os.listdir(base):
-            subj_path = os.path.join(base, subj)
-            if os.path.isdir(subj_path):
-                weeks = [w for w in os.listdir(subj_path) if os.path.isdir(os.path.join(subj_path, w))]
-                for week in weeks:
-                    quiz_path = os.path.join(subj_path, week, "quiz.json")
-                    if os.path.exists(quiz_path):
-                        subjects.append(subj)
-                        break
+        for doc in db.collection("finalised_quizzes").stream():
+            data = doc.to_dict()
+            if data and "subject" in data:
+                subjects.append(data["subject"])
         subjects = sorted(set(subjects))
         subject = st.selectbox("Select Subject", subjects, key="teacher_subject")
         weeks = []
         if subject:
-            subj_path = os.path.join(base, subject)
-            for w in os.listdir(subj_path):
-                week_path = os.path.join(subj_path, w)
-                quiz_path = os.path.join(week_path, "quiz.json")
-                if os.path.isdir(week_path) and os.path.exists(quiz_path):
-                    weeks.append(w)
-        weeks = sorted(weeks)
+            for doc in db.collection("finalised_quizzes").stream():
+                data = doc.to_dict()
+                if data and data.get("subject") == subject:
+                    weeks.append(data.get("week"))
+        weeks = sorted(set(weeks))
         week = st.selectbox("Select Week", weeks if weeks else [], key="teacher_week")
-        quiz_path = os.path.join(base, subject, week, "quiz.json") if subject and week else None
-        if subject and week and os.path.exists(quiz_path):
+        quiz_data = load_quiz_from_firestore(subject, week) if subject and week else []
+        if subject and week and quiz_data:
             st.success(f"Selected quiz: {subject} / {week}")
-            with open(quiz_path, "r", encoding="utf-8") as f:
-                questions = json.load(f)
+            questions = quiz_data
             edited_questions = []
             for q in questions:
                 with st.expander(f"Question {q.get('id', '')}: {q.get('question', '')}"):
@@ -167,9 +183,8 @@ if st.session_state.page == 'teacher':
                         "answer": new_rubric
                     })
             if st.button("Save All Changes"):
-                with open(quiz_path, "w", encoding="utf-8") as f:
-                    json.dump(edited_questions, f, indent=2, ensure_ascii=False)
-                st.success(f"Saved edited quiz to {quiz_path}")
+                save_quiz_to_firestore(subject, week, edited_questions)
+                st.success(f"Saved edited quiz to Firestore for {subject} / {week}")
     else:
         # Upload new quiz flow
         st.info("Upload a new quiz PDF to create a new quiz.")
@@ -271,12 +286,8 @@ if st.session_state.page == 'teacher':
                 if not edited_questions:
                     edited_questions = st.session_state.uploaded_questions
                 if st.button("Save Quiz"):
-                    save_dir = os.path.join(base, subject, week)
-                    os.makedirs(save_dir, exist_ok=True)
-                    save_path = os.path.join(save_dir, "quiz.json")
-                    with open(save_path, "w", encoding="utf-8") as f:
-                        json.dump(edited_questions, f, indent=2, ensure_ascii=False)
-                    st.success(f"Quiz saved to {save_path}. It is now available to students.")
+                    save_quiz_to_firestore(subject, week, edited_questions)
+                    st.success(f"Quiz saved to Firestore for {subject} / {week}. It is now available to students.")
             else:
                 st.warning("No questions extracted. Please check the PDF.")
 
@@ -328,52 +339,37 @@ elif st.session_state.page == 'student_pre_survey':
 
 elif st.session_state.page == 'student_quiz':
     st.sidebar.empty()
-    if st.button("⬅️ Back to Main Page"):
+    if st.button("\u2B05\uFE0F Back to Main Page"):
         st.session_state.page = 'main'
         set_query_params()
         st.rerun()
     st.markdown(f"**Logged in as:** `{st.session_state.student_id}`")
-    # Quiz selection (JSON only, not PDFs)
-    base = "data/finalised_quizzes"
-    # Only show subjects with at least one week containing quiz.json
+    # Quiz selection (Firestore only)
+    # Get all subjects from Firestore
     subjects = []
-    for subj in os.listdir(base):
-        subj_path = os.path.join(base, subj)
-        if os.path.isdir(subj_path):
-            weeks = [w for w in os.listdir(subj_path) if os.path.isdir(os.path.join(subj_path, w))]
-            for week in weeks:
-                quiz_path = os.path.join(subj_path, week, "quiz.json")
-                if os.path.exists(quiz_path):
-                    subjects.append(subj)
-                    break
+    for doc in db.collection("finalised_quizzes").stream():
+        data = doc.to_dict()
+        if data and "subject" in data:
+            subjects.append(data["subject"])
     subjects = sorted(set(subjects))
-    # REMOVE this line (duplicate):
-    # subject = st.selectbox("Select Subject", subjects, key="student_subject")
-    # Only show weeks with quiz.json for the selected subject
     weeks = []
     if 'student_subject' in st.session_state:
         subject = st.session_state['student_subject']
     else:
         subject = subjects[0] if subjects else ''
     if subject:
-        subj_path = os.path.join(base, subject)
-        for w in os.listdir(subj_path):
-            week_path = os.path.join(subj_path, w)
-            quiz_path = os.path.join(week_path, "quiz.json")
-            if os.path.isdir(week_path) and os.path.exists(quiz_path):
-                weeks.append(w)
-    weeks = sorted(weeks)
+        for doc in db.collection("finalised_quizzes").stream():
+            data = doc.to_dict()
+            if data and data.get("subject") == subject:
+                weeks.append(data.get("week"))
+    weeks = sorted(set(weeks))
     def on_subject_or_week_change():
         set_query_params()
-        # st.rerun() removed, as Streamlit reruns automatically after widget changes
-    # Only create the selectboxes ONCE, after weeks is built
     subject = st.selectbox("Select Subject", subjects, key="student_subject", on_change=on_subject_or_week_change)
     week = st.selectbox("Select Week", weeks if weeks else [], key="student_week", on_change=on_subject_or_week_change)
-    quiz_path = os.path.join(base, subject, week, "quiz.json") if subject and week else None
-    if subject and week and os.path.exists(quiz_path):
-        with open(quiz_path, "r", encoding="utf-8") as f:
-            quiz_data = json.load(f)
-        # Per-student, per-subject, per-week chat history
+    quiz_data = load_quiz_from_firestore(subject, week) if subject and week else []
+    if subject and week and quiz_data:
+        # Per-student, per-subject, per-week chat history (local, for now)
         student_profile_dir = os.path.join("data", "student_profiles", st.session_state.student_id)
         os.makedirs(student_profile_dir, exist_ok=True)
         chat_history_path = os.path.join(student_profile_dir, f"{subject}_{week}_quiz.json")
@@ -385,14 +381,6 @@ elif st.session_state.page == 'student_quiz':
         if st.button("Clear chat"):
             chat_history = []
             st.session_state.last_displayed_index = 0
-            # Also reset current_q in performance file
-            perf_path = os.path.join("data", "student_performance", f"{st.session_state.student_id}_{subject}_{week}.json")
-            if os.path.exists(perf_path):
-                with open(perf_path, "r", encoding="utf-8") as pf:
-                    perf = json.load(pf)
-                perf["current_q"] = 0
-                with open(perf_path, "w", encoding="utf-8") as pf:
-                    json.dump(perf, pf)
             with open(chat_history_path, "w", encoding="utf-8") as cf:
                 json.dump(chat_history, cf)
             st.rerun()
@@ -419,6 +407,7 @@ elif st.session_state.page == 'student_quiz':
                     st.chat_message("assistant").markdown(f"**Assistant:** {msg['content']}")
             st.write("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
         # Only show chat input at the bottom
+        user_input = st.chat_input("Type your answer and press Enter...")
         user_input = st.chat_input("Type your answer and press Enter...")
         if user_input:
             chat_history.append({"role": "user", "content": user_input})
