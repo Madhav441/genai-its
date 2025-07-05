@@ -303,16 +303,30 @@ elif st.session_state.page == 'student_login':
             if key not in ["page"]:
                 del st.session_state[key]
         st.session_state.student_id = student_id
-        # Check if pre-quiz survey is already done for this student/subject
-        subject = st.session_state.get('student_subject', '')
-        if subject:
-            survey_doc_id = f"{student_id}_{subject}_pre_survey"
-            survey_ref = db.collection("student_surveys").document(survey_doc_id)
-            survey_doc = survey_ref.get()
-            if survey_doc.exists and survey_doc.to_dict().get("done"):
-                st.session_state.page = 'student_quiz'
-            else:
-                st.session_state.page = 'student_pre_survey'
+        st.session_state.page = 'student_subject_select'
+        set_query_params()
+        st.rerun()
+    st.stop()
+
+elif st.session_state.page == 'student_subject_select':
+    st.sidebar.empty()
+    st.title("Select Subject")
+    # Get all subjects from Firestore
+    subjects = []
+    for doc in db.collection("finalised_quizzes").stream():
+        data = doc.to_dict()
+        if data and "subject" in data:
+            subjects.append(data["subject"])
+    subjects = sorted(set(subjects))
+    subject = st.selectbox("Select Subject", subjects, key="student_subject_select")
+    if st.button("Continue", disabled=not subject):
+        st.session_state['student_subject'] = subject
+        # Check if pre-quiz survey is already done for this student (not per subject)
+        survey_doc_id = f"{st.session_state['student_id']}_pre_survey"
+        survey_ref = db.collection("student_surveys").document(survey_doc_id)
+        survey_doc = survey_ref.get()
+        if survey_doc.exists and survey_doc.to_dict().get("done"):
+            st.session_state.page = 'student_quiz'
         else:
             st.session_state.page = 'student_pre_survey'
         set_query_params()
@@ -323,10 +337,10 @@ elif st.session_state.page == 'student_pre_survey':
     st.sidebar.empty()
     st.title("Pre-Quiz Survey")
     st.markdown("Please complete the pre-quiz survey below before starting your quiz.")
-    # Only require survey once per student per subject (not per week), store in Firestore
+    # Only require survey once per student (not per subject), store in Firestore
     survey_done = False
-    if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-        survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_pre_survey"
+    if 'student_id' in st.session_state:
+        survey_doc_id = f"{st.session_state['student_id']}_pre_survey"
         survey_ref = db.collection("student_surveys").document(survey_doc_id)
         survey_doc = survey_ref.get()
         if survey_doc.exists and survey_doc.to_dict().get("done"):
@@ -343,10 +357,10 @@ elif st.session_state.page == 'student_pre_survey':
         st.warning("Pre-quiz survey link is not configured.")
     confirm = st.checkbox("I confirm I have completed the survey", key="pre_survey_confirm")
     if st.button("I have completed the survey", disabled=not confirm):
-        if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-            survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_pre_survey"
+        if 'student_id' in st.session_state:
+            survey_doc_id = f"{st.session_state['student_id']}_pre_survey"
             survey_ref = db.collection("student_surveys").document(survey_doc_id)
-            survey_ref.set({"student_id": st.session_state['student_id'], "subject": st.session_state['student_subject'], "done": True})
+            survey_ref.set({"student_id": st.session_state['student_id'], "done": True})
         st.session_state.page = 'student_quiz'
         set_query_params()
         st.rerun()
@@ -475,8 +489,8 @@ elif st.session_state.page == 'student_post_survey':
     st.title("Post-Quiz Survey")
     st.success("Please complete the post-quiz survey below:")
     post_survey_done = False
-    if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-        post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+    if 'student_id' in st.session_state:
+        post_survey_doc_id = f"{st.session_state['student_id']}_post_survey"
         post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
         post_survey_doc = post_survey_ref.get()
         if post_survey_doc.exists and post_survey_doc.to_dict().get("done"):
@@ -492,10 +506,10 @@ elif st.session_state.page == 'student_post_survey':
         """, unsafe_allow_html=True)
         post_confirm = st.checkbox("I confirm I have completed the post-quiz survey", key="post_survey_confirm")
         if st.button("I have completed the post-quiz survey", disabled=not post_confirm):
-            if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-                post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+            if 'student_id' in st.session_state:
+                post_survey_doc_id = f"{st.session_state['student_id']}_post_survey"
                 post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
-                post_survey_ref.set({"student_id": st.session_state['student_id'], "subject": st.session_state['student_subject'], "done": True})
+                post_survey_ref.set({"student_id": st.session_state['student_id'], "done": True})
             st.session_state.page = 'main'
             set_query_params()
             st.rerun()
