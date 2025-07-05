@@ -408,7 +408,6 @@ elif st.session_state.page == 'student_quiz':
             st.write("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
         # Only show chat input at the bottom
         user_input = st.chat_input("Type your answer and press Enter...")
-        user_input = st.chat_input("Type your answer and press Enter...")
         if user_input:
             chat_history.append({"role": "user", "content": user_input})
             from quiz_agent import QuizAgent
