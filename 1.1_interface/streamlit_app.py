@@ -303,13 +303,11 @@ elif st.session_state.page == 'student_login':
         data = doc.to_dict()
         if data and "student_id" in data:
             firestore_ids.add(data["student_id"])
-    # Also check student_performance for any IDs not in surveys
     for doc in db.collection("student_performance").stream():
         doc_id = doc.id
         if doc_id:
             sid = doc_id.split("_")[0]
             firestore_ids.add(sid)
-    # Local profiles (legacy support)
     local_profiles_dir = os.path.join("data", "student_profiles")
     local_ids = set()
     if os.path.exists(local_profiles_dir):
@@ -323,7 +321,6 @@ elif st.session_state.page == 'student_login':
     new_id = None
     if selected == "Add new student...":
         new_id = st.text_input("Enter new student ID (letters, numbers, underscores only)", key="new_student_id")
-        # Validate new ID
         valid = bool(new_id) and new_id.isidentifier() and new_id not in all_ids
         if new_id and not new_id.isidentifier():
             st.warning("Student ID must contain only letters, numbers, or underscores and not start with a number.")
