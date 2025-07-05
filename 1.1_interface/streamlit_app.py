@@ -425,41 +425,15 @@ elif st.session_state.page == 'student_quiz':
             from quiz_agent import QuizAgent
             agent = QuizAgent(quiz_data, subject, week, st.session_state.student_id, {})
             response, end_quiz = agent.handle_input(user_input, chat_history)
-            # If the response signals Qualtrics 2, show the survey and stop
+            # If the response signals Qualtrics 2, go to post-survey page
             if end_quiz == "qualtrics2":
                 chat_history.append({"role": "assistant", "content": response})
                 with open(chat_history_path, "w", encoding="utf-8") as cf:
                     json.dump(chat_history, cf)
                 st.session_state.last_displayed_index = len(chat_history)
-                st.success("Please complete the post-quiz survey below:")
-                post_survey_done = False
-                if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-                    post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
-                    post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
-                    post_survey_doc = post_survey_ref.get()
-                    if post_survey_doc.exists and post_survey_doc.to_dict().get("done"):
-                        post_survey_done = True
-                if post_survey_done:
-                    st.success("You have already completed the post-quiz survey. Returning to main page...")
-                    st.session_state.page = 'main'
-                    set_query_params()
-                    st.rerun()
-                elif POST_QUIZ_SURVEY_URL:
-                    st.markdown(f"""
-                    <iframe src=\"{POST_QUIZ_SURVEY_URL}\" width=\"100%\" height=\"600\" frameborder=\"0\"></iframe>
-                    """, unsafe_allow_html=True)
-                    post_confirm = st.checkbox("I confirm I have completed the post-quiz survey", key="post_survey_confirm")
-                    if st.button("I have completed the post-quiz survey", disabled=not post_confirm):
-                        if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-                            post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
-                            post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
-                            post_survey_ref.set({"student_id": st.session_state['student_id'], "subject": st.session_state['student_subject'], "done": True})
-                        st.session_state.page = 'main'
-                        set_query_params()
-                        st.rerun()
-                else:
-                    st.warning("Post-quiz survey link is not configured.")
-                st.stop()
+                st.session_state.page = 'student_post_survey'
+                set_query_params()
+                st.rerun()
             # If the response contains both feedback and a new question, split and append both
             if ("**Question" in response) and ("Context & Instructions" in response):
                 # Try to split at the start of the next question
@@ -479,15 +453,41 @@ elif st.session_state.page == 'student_quiz':
 
     # If user types 'quit', return to main page or skip post-quiz survey if already done
     if user_input and user_input.strip().lower() == 'quit':
-        post_survey_done = False
-        if 'student_id' in st.session_state and 'student_subject' in st.session_state:
-            post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
-            post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
-            post_survey_doc = post_survey_ref.get()
-            if post_survey_doc.exists and post_survey_doc.to_dict().get("done"):
-                post_survey_done = True
         st.session_state.page = 'main'
         set_query_params()
         st.rerun()
 
     set_query_params()  # Update query params after any changes
+
+elif st.session_state.page == 'student_post_survey':
+    st.sidebar.empty()
+    st.title("Post-Quiz Survey")
+    st.success("Please complete the post-quiz survey below:")
+    post_survey_done = False
+    if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+        post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+        post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
+        post_survey_doc = post_survey_ref.get()
+        if post_survey_doc.exists and post_survey_doc.to_dict().get("done"):
+            post_survey_done = True
+    if post_survey_done:
+        st.success("You have already completed the post-quiz survey. Returning to main page...")
+        st.session_state.page = 'main'
+        set_query_params()
+        st.rerun()
+    elif POST_QUIZ_SURVEY_URL:
+        st.markdown(f"""
+        <iframe src=\"{POST_QUIZ_SURVEY_URL}\" width=\"100%\" height=\"600\" frameborder=\"0\"></iframe>
+        """, unsafe_allow_html=True)
+        post_confirm = st.checkbox("I confirm I have completed the post-quiz survey", key="post_survey_confirm")
+        if st.button("I have completed the post-quiz survey", disabled=not post_confirm):
+            if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+                post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+                post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
+                post_survey_ref.set({"student_id": st.session_state['student_id'], "subject": st.session_state['student_subject'], "done": True})
+            st.session_state.page = 'main'
+            set_query_params()
+            st.rerun()
+    else:
+        st.warning("Post-quiz survey link is not configured.")
+    st.stop()
