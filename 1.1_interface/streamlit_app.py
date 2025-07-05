@@ -312,11 +312,15 @@ elif st.session_state.page == 'student_pre_survey':
     st.sidebar.empty()
     st.title("Pre-Quiz Survey")
     st.markdown("Please complete the pre-quiz survey below before starting your quiz.")
-    # Check if survey already completed for this student/subject/week
-    survey_flag_path = None
-    if 'student_id' in st.session_state and 'student_subject' in st.session_state and 'student_week' in st.session_state:
-        survey_flag_path = os.path.join("data", "student_profiles", st.session_state.student_id, f"{st.session_state['student_subject']}_{st.session_state['student_week']}_pre_survey_done.flag")
-    if survey_flag_path and os.path.exists(survey_flag_path):
+    # Only require survey once per student per subject (not per week), store in Firestore
+    survey_done = False
+    if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+        survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_pre_survey"
+        survey_ref = db.collection("student_surveys").document(survey_doc_id)
+        survey_doc = survey_ref.get()
+        if survey_doc.exists and survey_doc.to_dict().get("done"):
+            survey_done = True
+    if survey_done:
         st.session_state.page = 'student_quiz'
         set_query_params()
         st.rerun()
@@ -326,12 +330,12 @@ elif st.session_state.page == 'student_pre_survey':
         """, unsafe_allow_html=True)
     else:
         st.warning("Pre-quiz survey link is not configured.")
-    if st.button("Continue to Quiz"):
-        # Mark survey as done for this student/subject/week
-        if survey_flag_path:
-            os.makedirs(os.path.dirname(survey_flag_path), exist_ok=True)
-            with open(survey_flag_path, "w") as f:
-                f.write("done")
+    confirm = st.checkbox("I confirm I have completed the survey", key="pre_survey_confirm")
+    if st.button("I have completed the survey", disabled=not confirm):
+        if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+            survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_pre_survey"
+            survey_ref = db.collection("student_surveys").document(survey_doc_id)
+            survey_ref.set({"student_id": st.session_state['student_id'], "subject": st.session_state['student_subject'], "done": True})
         st.session_state.page = 'student_quiz'
         set_query_params()
         st.rerun()
@@ -428,10 +432,31 @@ elif st.session_state.page == 'student_quiz':
                     json.dump(chat_history, cf)
                 st.session_state.last_displayed_index = len(chat_history)
                 st.success("Please complete the post-quiz survey below:")
-                if POST_QUIZ_SURVEY_URL:
+                post_survey_done = False
+                if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+                    post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+                    post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
+                    post_survey_doc = post_survey_ref.get()
+                    if post_survey_doc.exists and post_survey_doc.to_dict().get("done"):
+                        post_survey_done = True
+                if post_survey_done:
+                    st.success("You have already completed the post-quiz survey. Returning to main page...")
+                    st.session_state.page = 'main'
+                    set_query_params()
+                    st.rerun()
+                elif POST_QUIZ_SURVEY_URL:
                     st.markdown(f"""
                     <iframe src=\"{POST_QUIZ_SURVEY_URL}\" width=\"100%\" height=\"600\" frameborder=\"0\"></iframe>
                     """, unsafe_allow_html=True)
+                    post_confirm = st.checkbox("I confirm I have completed the post-quiz survey", key="post_survey_confirm")
+                    if st.button("I have completed the post-quiz survey", disabled=not post_confirm):
+                        if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+                            post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+                            post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
+                            post_survey_ref.set({"student_id": st.session_state['student_id'], "subject": st.session_state['student_subject'], "done": True})
+                        st.session_state.page = 'main'
+                        set_query_params()
+                        st.rerun()
                 else:
                     st.warning("Post-quiz survey link is not configured.")
                 st.stop()
@@ -451,5 +476,18 @@ elif st.session_state.page == 'student_quiz':
                 json.dump(chat_history, cf)
             st.session_state.last_displayed_index = len(chat_history)
             st.rerun()
+
+    # If user types 'quit', return to main page or skip post-quiz survey if already done
+    if user_input and user_input.strip().lower() == 'quit':
+        post_survey_done = False
+        if 'student_id' in st.session_state and 'student_subject' in st.session_state:
+            post_survey_doc_id = f"{st.session_state['student_id']}_{st.session_state['student_subject']}_post_survey"
+            post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
+            post_survey_doc = post_survey_ref.get()
+            if post_survey_doc.exists and post_survey_doc.to_dict().get("done"):
+                post_survey_done = True
+        st.session_state.page = 'main'
+        set_query_params()
+        st.rerun()
 
     set_query_params()  # Update query params after any changes
