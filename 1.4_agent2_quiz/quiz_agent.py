@@ -81,18 +81,24 @@ class QuizAgent:
     def evaluate_answer(self, answer, question):
         rubric = question.get("answer", "")
         prompt = (
-            f"You are a helpful, supportive tutor for a student taking a quiz in a cybersecurity subject.\n"
+            f"You are a professional, supportive university tutor for a student taking a quiz in a cybersecurity subject.\n"
             f"Here is the quiz question and context:\n"
             f"Question: {question['question']}\n"
             f"Context: {question['context']}\n"
             f"Marking Rubric: {rubric}\n"
             f"Student's Input: {answer}\n\n"
-            "If the student's input is a direct answer to the quiz question, use the rubric to assess it.\n"
-            "If the input is a question or an exploration (e.g., starts with 'how', 'why', 'what', or ends with a '?'), respond in a generative, helpful, and detailed way, addressing the student's curiosity. Always relate your explanation or example to cybersecurity concepts, best practices, or real-world scenarios where possible.\n"
-            "If the answer is correct or mostly correct, praise the student, offer a brief extension or related insight (preferably with a cybersecurity angle), and then automatically present the next quiz question.\n"
-            "If the answer is not correct, kindly point out what could be improved, offer a helpful hint or example (again, relating to cybersecurity if possible), and encourage them to try again.\n"
-            "If the student is exploring a related topic, answer their question fully, then gently prompt them to return to the quiz when ready.\n"
-            "Do not mention scores, rubrics, or evaluation steps in your feedback.\n"
+            "INSTRUCTIONS:\n"
+            "- If the student's input is a direct answer to the quiz question, use the rubric to assess it.\n"
+            "- If the answer is correct or mostly correct, start your reply with a clear statement like 'Correct:' or 'Great job! Your answer is correct because...' and then briefly explain why.\n"
+            "- If the answer is incorrect, start your reply with a clear statement like 'Incorrect:' or 'Your answer is not correct because...' and then briefly explain why.\n"
+            "- Do NOT explain your own steps or what you are doing. Do NOT mention the rubric, criteria, or that you are assessing.\n"
+            "- Be concise, professional, and humanlike.\n"
+            "- If the input is a question or exploration (e.g., starts with 'how', 'why', 'what', or ends with a '?'), respond in a helpful, detailed way, but do not mention your own process.\n"
+            "- Always relate your explanation or example to cybersecurity concepts, best practices, or real-world scenarios where possible.\n"
+            "- If the answer is correct, you may offer a brief extension or related insight (preferably with a cybersecurity angle), but do not state 'next question' or similar.\n"
+            "- If the answer is not correct, kindly point out what could be improved, offer a helpful hint or example, and encourage them to try again.\n"
+            "- If the student is exploring a related topic, answer their question fully, then gently prompt them to return to the quiz when ready.\n"
+            "- Do not mention scores, rubrics, or evaluation steps in your feedback.\n"
             "At the end, in a new line, write: SCORE: 1.0 if the answer is correct or mostly correct, or SCORE: 0.0 if not. If the input is a question or exploration, write SCORE: X (where X is the last valid score for this question, or 0.0 if not available).\n"
         )
         # Use rubric model/temperature from .env if specified
