@@ -166,7 +166,7 @@ def _pdf_to_text(path: str) -> str:
         pages = partition_pdf(
             filename=path,
             strategy="ocr_only",
-            ocr_languages=OCR_LANGUAGES,
+            languages=OCR_LANGUAGES,  # updated from ocr_languages to languages
             infer_table_structure=True,
         )
         embedded_txt = "\n".join(p.text for p in pages if p.text)
