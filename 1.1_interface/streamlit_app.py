@@ -303,7 +303,18 @@ elif st.session_state.page == 'student_login':
             if key not in ["page"]:
                 del st.session_state[key]
         st.session_state.student_id = student_id
-        st.session_state.page = 'student_pre_survey'
+        # Check if pre-quiz survey is already done for this student/subject
+        subject = st.session_state.get('student_subject', '')
+        if subject:
+            survey_doc_id = f"{student_id}_{subject}_pre_survey"
+            survey_ref = db.collection("student_surveys").document(survey_doc_id)
+            survey_doc = survey_ref.get()
+            if survey_doc.exists and survey_doc.to_dict().get("done"):
+                st.session_state.page = 'student_quiz'
+            else:
+                st.session_state.page = 'student_pre_survey'
+        else:
+            st.session_state.page = 'student_pre_survey'
         set_query_params()
         st.rerun()
     st.stop()
