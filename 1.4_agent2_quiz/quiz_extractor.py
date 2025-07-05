@@ -325,19 +325,20 @@ def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
             )
             enriched_context = llm.invoke(
                 [
-                    {"role": "system", "content": "Return ONLY the enriched context as plain text. Do not add any preamble, conclusion, or any answer. Do NOT include any answer or solution, just the context needed to answer the question."},
+                    {"role": "system", "content": "Return ONLY the enriched context as plain text. Do not add any preamble, conclusion, or any answer. Do NOT include any answer, solution, or worked example—just the context needed to answer the question. If the PDF contains an answer or solution, OMIT it from the context."},
                     {"role": "user", "content": enrich_prompt},
                 ],
                 temperature=0.2  # Slightly higher for more helpful completions
             ).content
             cleaned_context = clean_enriched_context(enriched_context)
-            # Remove any lines that look like an answer (e.g., start with 'Answer:', 'Solution:', or are long and not code)
+            # Remove any lines that look like an answer (e.g., start with 'Answer:', 'Solution:', 'Worked Example:', or are long and not code)
             cleaned_context = re.sub(r"^Answer:.*$", "", cleaned_context, flags=re.MULTILINE)
             cleaned_context = re.sub(r"^Solution:.*$", "", cleaned_context, flags=re.MULTILINE)
-            # Optionally, remove lines that look like full-sentence answers (not code, not variable, not table)
+            cleaned_context = re.sub(r"^Worked Example:.*$", "", cleaned_context, flags=re.MULTILINE)
+            # Remove lines that look like full-sentence answers (not code, not variable, not table)
             cleaned_context = "\n".join([
                 line for line in cleaned_context.splitlines()
-                if not (line.strip().lower().startswith(("the answer is", "in summary", "to solve this", "therefore", "thus")) or (len(line.strip().split()) > 8 and not any(x in line for x in ["=", ":", "print", "input", "for ", "while ", "if ", "def ", "class "])) )
+                if not (line.strip().lower().startswith(("the answer is", "in summary", "to solve this", "therefore", "thus", "correct answer", "final answer")) or (len(line.strip().split()) > 8 and not any(x in line for x in ["=", ":", "print", "input", "for ", "while ", "if ", "def ", "class "])) )
             ])
             # Post-processing: If context is too short or just a restatement, try to extract relevant lines from PDF
             if len(cleaned_context) < 40 or cleaned_context.lower().startswith("the question is asking"):
