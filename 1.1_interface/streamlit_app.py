@@ -296,16 +296,58 @@ if st.session_state.page == 'teacher':
 elif st.session_state.page == 'student_login':
     st.sidebar.empty()
     st.title("Student Login")
-    student_id = st.text_input("Enter your student ID or name")
-    if student_id:
-        # Reset all user-specific session state on new login
-        for key in list(st.session_state.keys()):
-            if key not in ["page"]:
-                del st.session_state[key]
-        st.session_state.student_id = student_id
-        st.session_state.page = 'student_subject_select'
-        set_query_params()
-        st.rerun()
+    # --- Student ID selection/registration ---
+    # 1. Gather all student IDs from Firestore and local profiles
+    firestore_ids = set()
+    for doc in db.collection("student_surveys").stream():
+        data = doc.to_dict()
+        if data and "student_id" in data:
+            firestore_ids.add(data["student_id"])
+    # Also check student_performance for any IDs not in surveys
+    for doc in db.collection("student_performance").stream():
+        doc_id = doc.id
+        if doc_id:
+            sid = doc_id.split("_")[0]
+            firestore_ids.add(sid)
+    # Local profiles (legacy support)
+    local_profiles_dir = os.path.join("data", "student_profiles")
+    local_ids = set()
+    if os.path.exists(local_profiles_dir):
+        for entry in os.listdir(local_profiles_dir):
+            if os.path.isdir(os.path.join(local_profiles_dir, entry)) or entry.endswith(".json"):
+                local_ids.add(entry.replace(".json", ""))
+    all_ids = sorted(firestore_ids.union(local_ids))
+    # 2. Dropdown + Add new option
+    options = all_ids + ["Add new student..."] if all_ids else ["Add new student..."]
+    selected = st.selectbox("Select your student ID", options, key="student_id_select")
+    new_id = None
+    if selected == "Add new student...":
+        new_id = st.text_input("Enter new student ID (letters, numbers, underscores only)", key="new_student_id")
+        # Validate new ID
+        valid = bool(new_id) and new_id.isidentifier() and new_id not in all_ids
+        if new_id and not new_id.isidentifier():
+            st.warning("Student ID must contain only letters, numbers, or underscores and not start with a number.")
+        elif new_id and new_id in all_ids:
+            st.warning("This student ID already exists. Please choose another.")
+        if st.button("Continue", disabled=not valid):
+            # Reset all user-specific session state on new login
+            for key in list(st.session_state.keys()):
+                if key not in ["page"]:
+                    del st.session_state[key]
+            st.session_state.student_id = new_id
+            st.session_state.page = 'student_subject_select'
+            set_query_params()
+            st.rerun()
+    else:
+        if st.button("Continue", disabled=(not selected or selected == "Add new student...")):
+            # Reset all user-specific session state on new login
+            for key in list(st.session_state.keys()):
+                if key not in ["page"]:
+                    del st.session_state[key]
+            st.session_state.student_id = selected
+            st.session_state.page = 'student_subject_select'
+            set_query_params()
+            st.rerun()
     st.stop()
 
 elif st.session_state.page == 'student_subject_select':
@@ -424,7 +466,12 @@ elif st.session_state.page == 'student_quiz':
         st.markdown("---")
         # Only initialize with instructions/first question if chat_history is empty
         if not chat_history:
-            from quiz_agent import QuizAgent
+            try:
+                from quiz_agent import QuizAgent
+            except ImportError:
+                import importlib
+                quiz_agent = importlib.import_module("quiz_agent")
+                QuizAgent = quiz_agent.QuizAgent
             agent = QuizAgent(quiz_data, subject, week, st.session_state.student_id, {})
             rules = agent.get_instructions()
             first_q = agent.present_question(quiz_data[0])
@@ -447,7 +494,12 @@ elif st.session_state.page == 'student_quiz':
         user_input = st.chat_input("Type your answer and press Enter...")
         if user_input:
             chat_history.append({"role": "user", "content": user_input})
-            from quiz_agent import QuizAgent
+            try:
+                from quiz_agent import QuizAgent
+            except ImportError:
+                import importlib
+                quiz_agent = importlib.import_module("quiz_agent")
+                QuizAgent = quiz_agent.QuizAgent
             agent = QuizAgent(quiz_data, subject, week, st.session_state.student_id, {})
             response, end_quiz = agent.handle_input(user_input, chat_history)
             # If the response signals Qualtrics 2, go to post-survey page
