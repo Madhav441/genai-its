@@ -23,7 +23,7 @@ from unstructured.partition.pdf import partition_pdf          # single import
 
 # ── Tunables ────────────────────────────────────────────────────────────
 MAX_CHARS      = 24_000                # ≈ 7 200 tokens
-OCR_LANGUAGES  = "eng+equ"            # add more langs if you need them
+OCR_LANGUAGES  = ["eng", "equ"]            # add more langs if you need them
 TEXT_THRESHOLD = 1_000                # chars – if fewer → trigger OCR
 
 # ── Prompts (unchanged) ─────────────────────────────────────────────────
@@ -166,7 +166,7 @@ def _pdf_to_text(path: str) -> str:
         pages = partition_pdf(
             filename=path,
             strategy="ocr_only",
-            languages=OCR_LANGUAGES,  # updated from ocr_languages to languages
+            languages=OCR_LANGUAGES,  # updated from ocr_languages to languages, now always a list
             infer_table_structure=True,
         )
         embedded_txt = "\n".join(p.text for p in pages if p.text)
