@@ -23,7 +23,7 @@ from unstructured.partition.pdf import partition_pdf          # single import
 
 # ── Tunables ────────────────────────────────────────────────────────────
 MAX_CHARS      = 24_000                # ≈ 7 200 tokens
-OCR_LANGUAGES  = ["eng", "equ"]            # add more langs if you need them
+OCR_LANGUAGES  = ["eng"]            # use only English for maximum compatibility
 TEXT_THRESHOLD = 1_000                # chars – if fewer → trigger OCR
 
 # ── Prompts (unchanged) ─────────────────────────────────────────────────
