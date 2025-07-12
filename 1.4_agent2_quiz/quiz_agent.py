@@ -48,7 +48,7 @@ class QuizAgent:
         db.document(self.firestore_doc).set(self.performance)
 
     def get_instructions(self):
-        # More creative, agentic, and clear rules for students
+        # Clear, accurate rules for students based on actual functionality
         return (
             "👋 **Welcome to your quiz!**\n\n"
             "You are about to take an interactive, AI-powered quiz. Here are the rules and how it works:\n\n"
@@ -56,8 +56,7 @@ class QuizAgent:
             "- You can answer in your own words, or with code if required.\n"
             "- I will give you instant, supportive feedback and let you know if you should try again or move on.\n"
             "- Your answers will be checked against a detailed marking rubric.\n"
-            "- To move to the next question, type **'next'** or **'continue'**.\n"
-            "- To go back to the previous question, type **'back'**, **'previous'**, or **'prev'**.\n"
+            "- To move to the next question, type **'next'** or **'continue'** (only after a sufficient answer).\n"
             "- To finish the quiz at any time, type **'quit'**, **'exit'**, **'stop'**, or **'finish'**.\n\n"
             "Let's get started! Here comes your first question:"
         )
@@ -173,16 +172,6 @@ class QuizAgent:
             else:
                 # Do NOT advance, must retry
                 return "You need to attempt the question and receive a score of at least 0.5 before moving on.", False
-        # Go back a question if user types 'back', 'previous', or 'prev'
-        back_phrases = ["back", "previous", "prev"]
-        if user_clean in back_phrases:
-            if self.current_q > 0:
-                self.current_q -= 1
-                self.performance["current_q"] = self.current_q
-                self.save_performance()
-                return self.present_question(self.quiz_data[self.current_q]), False
-            else:
-                return "You are already at the first question.", False
         # Check if the input is an answer (simple heuristic: not a question, not empty)
         is_question = user_input.strip().endswith("?") or user_input.strip().lower().startswith(("how", "why", "what", "can", "does", "do", "is", "are", "could", "would", "should"))
         if user_input.strip() and not is_question:
