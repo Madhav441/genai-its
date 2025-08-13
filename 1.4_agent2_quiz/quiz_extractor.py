@@ -77,9 +77,10 @@ ENRICH_PROMPT = textwrap.dedent("""
 
     TASK:
       Review the CURRENT CONTEXT and the FULL PDF TEXT below in relation to the QUESTION.
-      • If the question refers to code, variables, tables, or any sample/expected output, copy the exact relevant lines from the PDF text into the context.
+      • Only include code snippets that are necessary for understanding the question, such as function signatures, input/output format, or code templates that help the student get started.
+      • Do NOT include full example solutions, worked code, or step-by-step answers unless the question explicitly asks for it.
       • If the PDF or context contains any sample output, expected output, or example results, ALWAYS extract and include them in the context, clearly labeled as "Sample Output:" or "Expected Output:" (use section headings).
-      • Do NOT just summarize or restate the question—always include all code, variables, and all sample/expected output needed to answer.
+      • Do NOT just summarize or restate the question—always include all code, variables, and all sample/expected output needed to answer, but avoid giving away the solution.
       • If details are missing but can be found in the FULL PDF TEXT, append those details.
       • Otherwise, return the CURRENT CONTEXT verbatim.
       • Format the output for a student: use clear section headings (e.g., "Instructions:", "Useful Functions:", "Sample Output:", "Expected Output:"), bullet points for steps, and triple backticks for code or output blocks.
@@ -96,7 +97,7 @@ ENRICH_PROMPT = textwrap.dedent("""
     «{question}»
 
     RESPONSE:
-    Return the enriched context as plain text, formatted for students, including all relevant code, variables, and ALL sample/expected output, but never the answer itself. If you find any sample or expected output, always include it as a clearly labeled section.
+    Return the enriched context as plain text, formatted for students, including only helpful code instructions (not full solutions) and ALL sample/expected output, but never the answer itself. If you find any sample or expected output, always include it as a clearly labeled section.
 """)
 
 
