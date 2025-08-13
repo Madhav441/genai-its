@@ -3,6 +3,10 @@ import json
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
+# Import the formatting utility for quiz context
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
+from utils.format_quiz_context import format_quiz_context
 
 # Load survey URLs from environment
 PRE_QUIZ_SURVEY_URL = os.getenv("PRE_QUIZ_SURVEY_URL", "")
@@ -173,6 +177,7 @@ if st.session_state.page == 'teacher':
             edited_questions = []
             for q in questions:
                 with st.expander(f"Question {q.get('id', '')}: {q.get('question', '')}"):
+                    st.markdown(format_quiz_context(q), unsafe_allow_html=True)
                     new_question = st.text_area("Question", value=q.get('question', ''), key=f"edit_q_{q.get('id','')}_question")
                     new_context = st.text_area("Context", value=q.get('context', ''), key=f"edit_q_{q.get('id','')}_context", height=150)
                     new_rubric = st.text_area("Rubric", value=q.get('answer', ''), key=f"edit_q_{q.get('id','')}_rubric", height=200)
@@ -273,6 +278,7 @@ if st.session_state.page == 'teacher':
                 edited_questions = []
                 for q in st.session_state.uploaded_questions:
                     with st.expander(f"Question {q.get('id', '')}: {q.get('question', '')}"):
+                        st.markdown(format_quiz_context(q), unsafe_allow_html=True)
                         new_question = st.text_area("Question", value=q.get('question', ''), key=f"new_q_{q.get('id','')}_question")
                         new_context = st.text_area("Context", value=q.get('context', ''), key=f"new_q_{q.get('id','')}_context", height=150)
                         new_rubric = st.text_area("Rubric", value=q.get('answer', ''), key=f"new_q_{q.get('id','')}_rubric", height=200)
