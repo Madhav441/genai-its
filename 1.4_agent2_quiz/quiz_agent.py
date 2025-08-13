@@ -62,19 +62,26 @@ class QuizAgent:
         )
 
     def present_question(self, q):
-        # Blend context and instructions, show code snippets if present
-        context = q.get('context', '')
-        # If context contains code, format it nicely
-        code_lines = [line for line in context.splitlines() if any(x in line for x in ['=', 'print', 'def ', 'input', 'for ', 'while ', 'if ', ':'])]
-        if code_lines:
-            code_block = '\n'.join(code_lines)
-            context_md = context.replace(code_block, f'\n```python\n{code_block}\n```\n')
-        else:
-            context_md = context
+        # Improved formatting for Streamlit display
+        context = q.get('context', '').strip()
+        question = q.get('question', '').strip()
+        # Add bold and spacing to question
+        question_md = f"### <span style='color:#A78BFA'><b>Question {q['id']}</b></span>\n\n" \
+                      f"<b>{question}</b>"
+        # Try to split context into logical sections for better display
+        context_md = context
+        # If context contains "Instructions:", "Useful Functions:", "Sample Output:", etc., add extra spacing
+        for section in ["Instructions:", "Useful Functions:", "Sample Output:", "Expected Output:", "Example code", "Example Output"]:
+            context_md = context_md.replace(section, f"\n**{section}**")
+        # Ensure code blocks are properly formatted
+        context_md = context_md.replace("```python", "\n```python").replace("```text", "\n```text").replace("```", "\n```")
+        # Add extra spacing before/after code blocks
+        context_md = context_md.replace("\n```", "\n\n```")
+        # Compose the markdown for Streamlit (allow HTML for color)
         return (
-            f"**Question {q['id']}**\n"
-            f"*{q['question']}*\n\n"
-            f"**Context & Instructions:**\n{context_md}\n\nPlease type your answer below."
+            f"{question_md}\n\n"
+            f"**Context & Instructions:**\n\n{context_md}\n\n"
+            f"<span style='color:#67D6FF'><b>Please type your answer below.</b></span>"
         )
 
     def evaluate_answer(self, answer, question):

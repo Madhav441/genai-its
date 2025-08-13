@@ -81,6 +81,9 @@ ENRICH_PROMPT = textwrap.dedent("""\
       • Do NOT just summarize or restate the question—always include all code, variables, and example output needed to answer.
       • If details are missing but can be found in the FULL PDF TEXT, append those details.
       • Otherwise, return the CURRENT CONTEXT verbatim.
+      • Format the output for a student: use clear section headings (e.g., "Instructions:", "Useful Functions:", "Sample Output:"), bullet points for steps, and triple backticks for code or output blocks.
+      • Do NOT output or restate the answer itself, only the information needed to answer.
+      • If the context includes "Expected Output", label it clearly, but do not provide the answer unless the question explicitly asks for it.
 
     CURRENT CONTEXT:
     «{context}»
@@ -92,7 +95,7 @@ ENRICH_PROMPT = textwrap.dedent("""\
     «{question}»
 
     RESPONSE:
-    Return the enriched context as plain text, including all relevant code, variables, and example output.
+    Return the enriched context as plain text, formatted for students, including all relevant code, variables, and example output, but never the answer itself.
 """)
 
 
@@ -111,6 +114,8 @@ RUBRIC_PROMPT = textwrap.dedent("""\
         - Objective: Yes/No answer (e.g., "Is this present?")
         - Subjective: Requires interpretation (e.g., "Is this appropriate?")
         - Formatting: Relates to presentation or structure.
+      • If the context includes a section labeled "Expected Output", include a criterion requiring the student's answer to match it exactly. If the context includes "Sample Output", do not require the student to reproduce it unless the question explicitly asks for it.
+      • Do NOT output or restate the answer itself in the rubric, only the criteria for a correct answer.
     RULES
       • Provide ≥ 3 criteria unless the question is trivial; total marks 8-12.
       • Use integers for marks.
@@ -136,11 +141,15 @@ RUBRIC_PROMPT = textwrap.dedent("""\
         Description: [What the criterion is about]
         How: [Details on how to evaluate this criterion]
 
-      QUESTION
-      «{question}»
+    SPECIAL INSTRUCTIONS FOR OUTPUT FORMATS
+      • If the context contains code blocks or sample outputs, reference them as "expected format" or "expected output" in the criteria, but do NOT copy or restate their content.
+      • If the question requires a specific output format, include a criterion for correct formatting, but do not reveal the output itself.
 
-      CONTEXT
-      «{context}»
+    QUESTION
+    «{question}»
+
+    CONTEXT
+    «{context}»
 """)
 
 
