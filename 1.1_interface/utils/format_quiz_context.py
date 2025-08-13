@@ -5,8 +5,12 @@ def format_quiz_context(q):
     import re
     context = q.get('context', '').strip()
     question = q.get('question', '').strip()
-    question_md = f"### <span style='color:#A78BFA'><b>Question {q.get('id','')}</b></span>\n\n" \
-                  f"<b>{question}</b>"
+    # Use markdown for heading for Streamlit compatibility
+    qnum = q.get('number', q.get('id', ''))
+    if qnum:
+        question_md = f"### **Question {qnum}**\n\n**{question}**"
+    else:
+        question_md = f"### **Question**\n\n**{question}**"
     def format_section_headers(text):
         # Highlight Sample/Expected Output sections with color and bold
         for section, color in [
