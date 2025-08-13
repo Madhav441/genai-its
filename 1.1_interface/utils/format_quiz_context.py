@@ -8,8 +8,22 @@ def format_quiz_context(q):
     question_md = f"### <span style='color:#A78BFA'><b>Question {q.get('id','')}</b></span>\n\n" \
                   f"<b>{question}</b>"
     def format_section_headers(text):
-        for section in ["Instructions:", "Context & Instructions:", "Useful Functions:", "Sample Output:", "Expected Output:", "Example code", "Example Output", "Requirements:", "Data Structures:"]:
-            text = re.sub(rf"(^|\n)\s*{re.escape(section)}", f"\n\n**{section}**", text)
+        # Highlight Sample/Expected Output sections with color and bold
+        for section, color in [
+            ("Sample Output:", "#FFD166"),
+            ("Expected Output:", "#FFD166"),
+            ("Instructions:", None),
+            ("Context & Instructions:", None),
+            ("Useful Functions:", None),
+            ("Example code", None),
+            ("Example Output", None),
+            ("Requirements:", None),
+            ("Data Structures:", None),
+        ]:
+            if color:
+                text = re.sub(rf"(^|\n)\s*{re.escape(section)}", f"\n\n<span style='background-color:{color};color:#222;font-weight:bold;padding:2px 6px;border-radius:4px'>{section}</span>", text)
+            else:
+                text = re.sub(rf"(^|\n)\s*{re.escape(section)}", f"\n\n**{section}**", text)
         return text
     def bulletify_lines(text):
         lines = text.splitlines()

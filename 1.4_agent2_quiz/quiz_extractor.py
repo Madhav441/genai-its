@@ -71,19 +71,20 @@ Separate each question block with a blank line and do not output any extra text.
 #     «{context}»
 # """)
 
-ENRICH_PROMPT = textwrap.dedent("""\
+ENRICH_PROMPT = textwrap.dedent("""
     ROLE
       • Experienced university tutor & assessment designer
 
     TASK:
       Review the CURRENT CONTEXT and the FULL PDF TEXT below in relation to the QUESTION.
-      • If the question refers to code, variables, tables, or example output, copy the exact relevant lines from the PDF text into the context.
-      • Do NOT just summarize or restate the question—always include all code, variables, and example output needed to answer.
+      • If the question refers to code, variables, tables, or any sample/expected output, copy the exact relevant lines from the PDF text into the context.
+      • If the PDF or context contains any sample output, expected output, or example results, ALWAYS extract and include them in the context, clearly labeled as "Sample Output:" or "Expected Output:" (use section headings).
+      • Do NOT just summarize or restate the question—always include all code, variables, and all sample/expected output needed to answer.
       • If details are missing but can be found in the FULL PDF TEXT, append those details.
       • Otherwise, return the CURRENT CONTEXT verbatim.
-      • Format the output for a student: use clear section headings (e.g., "Instructions:", "Useful Functions:", "Sample Output:"), bullet points for steps, and triple backticks for code or output blocks.
+      • Format the output for a student: use clear section headings (e.g., "Instructions:", "Useful Functions:", "Sample Output:", "Expected Output:"), bullet points for steps, and triple backticks for code or output blocks.
       • Do NOT output or restate the answer itself, only the information needed to answer.
-      • If the context includes "Expected Output", label it clearly, but do not provide the answer unless the question explicitly asks for it.
+      • If the context includes "Expected Output" or "Sample Output", label it clearly, but do not provide the answer unless the question explicitly asks for it.
 
     CURRENT CONTEXT:
     «{context}»
@@ -95,7 +96,7 @@ ENRICH_PROMPT = textwrap.dedent("""\
     «{question}»
 
     RESPONSE:
-    Return the enriched context as plain text, formatted for students, including all relevant code, variables, and example output, but never the answer itself.
+    Return the enriched context as plain text, formatted for students, including all relevant code, variables, and ALL sample/expected output, but never the answer itself. If you find any sample or expected output, always include it as a clearly labeled section.
 """)
 
 
@@ -341,20 +342,27 @@ def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
             ).content
             cleaned_context = clean_enriched_context(enriched_context)
             # Remove any lines that look like an answer (e.g., start with 'Answer:', 'Solution:', 'Worked Example:', or are long and not code)
-            cleaned_context = re.sub(r"^Answer:.*$", "", cleaned_context, flags=re.MULTILINE)
-            cleaned_context = re.sub(r"^Solution:.*$", "", cleaned_context, flags=re.MULTILINE)
-            cleaned_context = re.sub(r"^Worked Example:.*$", "", cleaned_context, flags=re.MULTILINE)
-            # Remove lines that look like full-sentence answers (not code, not variable, not table)
-            cleaned_context = "\n".join([
-                line for line in cleaned_context.splitlines()
-                if not (line.strip().lower().startswith(("the answer is", "in summary", "to solve this", "therefore", "thus", "correct answer", "final answer")) or (len(line.strip().split()) > 8 and not any(x in line for x in ["=", ":", "print", "input", "for ", "while ", "if ", "def ", "class "])) )
-            ])
+            # BUT: Never remove lines labeled as 'Sample Output', 'Expected Output', or similar (these must be shown to students)
+            cleaned_context_lines = []
+            for line in cleaned_context.splitlines():
+                lstr = line.strip().lower()
+                if lstr.startswith(("sample output", "expected output")):
+                    cleaned_context_lines.append(line)
+                elif lstr.startswith(("answer:", "solution:", "worked example:")):
+                    continue  # skip these
+                elif lstr.startswith(("the answer is", "in summary", "to solve this", "therefore", "thus", "correct answer", "final answer")):
+                    continue  # skip these
+                elif len(line.strip().split()) > 8 and not any(x in line for x in ["=", ":", "print", "input", "for ", "while ", "if ", "def ", "class "]):
+                    continue  # skip likely answer sentences
+                else:
+                    cleaned_context_lines.append(line)
+            cleaned_context = "\n".join(cleaned_context_lines)
             # Post-processing: If context is too short or just a restatement, try to extract relevant lines from PDF
             if len(cleaned_context) < 40 or cleaned_context.lower().startswith("the question is asking"):
                 # Try to find lines from the PDF that match the question or contain code/output
                 q_text = q["question"][:40]
                 pdf_lines = pdf_text.splitlines()
-                relevant_lines = [line for line in pdf_lines if q_text.split()[0] in line or any(x in line for x in ["=", "print", ":", "+", "input", "output"])]
+                relevant_lines = [line for line in pdf_lines if q_text.split()[0] in line or any(x in line for x in ["=", "print", ":", "+", "input", "output", "Sample Output", "Expected Output"])]
                 if relevant_lines:
                     cleaned_context += "\n" + "\n".join(relevant_lines[:6])
             q["context"] = cleaned_context.strip()
