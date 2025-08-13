@@ -343,28 +343,42 @@ def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
             cleaned_context = clean_enriched_context(enriched_context)
             # Remove any lines that look like an answer (e.g., start with 'Answer:', 'Solution:', 'Worked Example:', or are long and not code)
             # BUT: Never remove lines labeled as 'Sample Output', 'Expected Output', or similar (these must be shown to students)
+            # Improved: Avoid context repetition and always include the original context at the top if not present
             cleaned_context_lines = []
+            seen_lines = set()
+            # Always start with the original context if not empty
+            orig_context = q.get("context", "").strip()
+            if orig_context:
+                for line in orig_context.splitlines():
+                    l = line.strip()
+                    if l and l not in seen_lines:
+                        cleaned_context_lines.append(l)
+                        seen_lines.add(l)
+            # Now add enriched lines, skipping duplicates and unwanted lines
             for line in cleaned_context.splitlines():
                 lstr = line.strip().lower()
-                if lstr.startswith(("sample output", "expected output")):
-                    cleaned_context_lines.append(line)
-                elif lstr.startswith(("answer:", "solution:", "worked example:")):
+                l = line.strip()
+                if not l or l in seen_lines:
+                    continue
+                if lstr.startswith(("answer:", "solution:", "worked example:")):
                     continue  # skip these
-                elif lstr.startswith(("the answer is", "in summary", "to solve this", "therefore", "thus", "correct answer", "final answer")):
+                if lstr.startswith(("the answer is", "in summary", "to solve this", "therefore", "thus", "correct answer", "final answer")):
                     continue  # skip these
-                elif len(line.strip().split()) > 8 and not any(x in line for x in ["=", ":", "print", "input", "for ", "while ", "if ", "def ", "class "]):
+                if len(l.split()) > 8 and not any(x in l for x in ["=", ":", "print", "input", "for ", "while ", "if ", "def ", "class "]):
                     continue  # skip likely answer sentences
-                else:
-                    cleaned_context_lines.append(line)
+                cleaned_context_lines.append(line)
+                seen_lines.add(l)
             cleaned_context = "\n".join(cleaned_context_lines)
-            # Post-processing: If context is too short or just a restatement, try to extract relevant lines from PDF
-            if len(cleaned_context) < 40 or cleaned_context.lower().startswith("the question is asking"):
-                # Try to find lines from the PDF that match the question or contain code/output
+            # If context is still too short, try to extract relevant lines from PDF
+            if len(cleaned_context) < 40:
                 q_text = q["question"][:40]
                 pdf_lines = pdf_text.splitlines()
                 relevant_lines = [line for line in pdf_lines if q_text.split()[0] in line or any(x in line for x in ["=", "print", ":", "+", "input", "output", "Sample Output", "Expected Output"])]
-                if relevant_lines:
-                    cleaned_context += "\n" + "\n".join(relevant_lines[:6])
+                for line in relevant_lines[:6]:
+                    l = line.strip()
+                    if l and l not in seen_lines:
+                        cleaned_context += "\n" + line
+                        seen_lines.add(l)
             q["context"] = cleaned_context.strip()
             enriched_questions.append(q)
         except Exception as e:

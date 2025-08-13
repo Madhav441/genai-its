@@ -39,7 +39,12 @@ def format_quiz_context(q):
                 new_lines.append(line)
         return "\n".join(new_lines)
     def highlight_numbers(text):
-        return re.sub(r"(\b\d+\b)", r"<span style='color:#F59E42'><b>\1</b></span>", text)
+        # Only highlight numbers outside code blocks
+        code_blocks = re.split(r'(```[\s\S]*?```)', text)
+        for i in range(len(code_blocks)):
+            if not code_blocks[i].startswith('```'):
+                code_blocks[i] = re.sub(r"(\b\d+\b)", r"<span style='color:#F59E42'><b>\1</b></span>", code_blocks[i])
+        return ''.join(code_blocks)
     def format_code_blocks(text):
         text = text.replace("```python", "\n```python").replace("```text", "\n```text").replace("```", "\n```")
         text = text.replace("\n```", "\n\n```")
