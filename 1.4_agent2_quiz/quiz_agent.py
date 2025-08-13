@@ -222,16 +222,27 @@ class QuizAgent:
                     "your answer is correct because" in feedback_lower
                 ) and "incorrect:" not in feedback_lower
             )
-            if is_clearly_correct and self.current_q < len(self.quiz_data) - 1:
-                encouragement = "🌟 Great job! " if score_float > 0.95 else "👍 Well done! "
+            # Ensure question is passed correctly
+            q = self.quiz_data[self.current_q]  # Fetch the current question
+            rubric = q.get("answer", "")  # Ensure rubric is fetched from the question
+            rubric_criteria = rubric.split(";")  # Assuming rubric is semicolon-separated
+            satisfied_criteria = sum(1 for criterion in rubric_criteria if criterion.lower() in feedback.lower())
+            total_criteria = len(rubric_criteria)
+            correctness_percentage = (satisfied_criteria / total_criteria) * 100 if total_criteria > 0 else 0
+
+            # Only auto-advance if correctness is at least 80% and user explicitly types 'next' or 'continue'
+            feedback_lower = feedback.lower()
+            is_sufficiently_correct = correctness_percentage >= 80
+            if is_sufficiently_correct and user_clean in ["next", "continue"] and self.current_q < len(self.quiz_data) - 1:
+                encouragement = "🌟 Great job! " if correctness_percentage > 95 else "👍 Well done! "
                 response = f"{encouragement}{feedback}\n\nHere is your next question:"
                 self.current_q += 1
                 self.performance["current_q"] = self.current_q
                 self.save_performance()
                 response += "\n\n" + self.present_question(self.quiz_data[self.current_q])
                 return response, False
-            elif is_clearly_correct and self.current_q == len(self.quiz_data) - 1:
-                encouragement = "🌟 Great job! " if score_float > 0.95 else "👍 Well done! "
+            elif is_sufficiently_correct and user_clean in ["next", "continue"] and self.current_q == len(self.quiz_data) - 1:
+                encouragement = "🌟 Great job! " if correctness_percentage > 95 else "👍 Well done! "
                 response = f"{encouragement}{feedback}\n\n🎉 You've completed all questions! Please complete the post-quiz survey below."
                 self.current_q += 1
                 self.performance["current_q"] = self.current_q
