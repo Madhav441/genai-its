@@ -212,8 +212,10 @@ class QuizAgent:
                 score_float = float(score)
             except Exception:
                 score_float = 0.0
-            # Auto-advance if THIS answer is >= 0.8 and not on last question
-            if score_float >= 0.8 and self.current_q < len(self.quiz_data) - 1:
+            # Only auto-advance if score is 1.0 and feedback is clearly correct
+            feedback_lower = feedback.lower()
+            is_clearly_correct = (score_float >= 1.0) and ("correct:" in feedback_lower or "great job!" in feedback_lower)
+            if is_clearly_correct and self.current_q < len(self.quiz_data) - 1:
                 encouragement = "🌟 Great job! " if score_float > 0.95 else "👍 Well done! "
                 response = f"{encouragement}{feedback}\n\nHere is your next question:"
                 self.current_q += 1
@@ -221,7 +223,7 @@ class QuizAgent:
                 self.save_performance()
                 response += "\n\n" + self.present_question(self.quiz_data[self.current_q])
                 return response, False
-            elif score_float >= 0.8 and self.current_q == len(self.quiz_data) - 1:
+            elif is_clearly_correct and self.current_q == len(self.quiz_data) - 1:
                 encouragement = "🌟 Great job! " if score_float > 0.95 else "👍 Well done! "
                 response = f"{encouragement}{feedback}\n\n🎉 You've completed all questions! Please complete the post-quiz survey below."
                 self.current_q += 1
