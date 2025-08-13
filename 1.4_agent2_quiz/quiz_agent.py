@@ -212,9 +212,15 @@ class QuizAgent:
                 score_float = float(score)
             except Exception:
                 score_float = 0.0
-            # Only auto-advance if score is 1.0 and feedback is clearly correct
+            # Only auto-advance if score is 1.0 and feedback explicitly confirms correctness
             feedback_lower = feedback.lower()
-            is_clearly_correct = (score_float >= 1.0) and ("correct:" in feedback_lower or "great job!" in feedback_lower)
+            is_clearly_correct = (
+                score_float == 1.0 and (
+                    "correct:" in feedback_lower or 
+                    "great job!" in feedback_lower or 
+                    "your answer is correct because" in feedback_lower
+                )
+            )
             if is_clearly_correct and self.current_q < len(self.quiz_data) - 1:
                 encouragement = "🌟 Great job! " if score_float > 0.95 else "👍 Well done! "
                 response = f"{encouragement}{feedback}\n\nHere is your next question:"
