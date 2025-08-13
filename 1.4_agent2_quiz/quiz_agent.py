@@ -62,10 +62,37 @@ class QuizAgent:
         )
 
     def present_question(self, q):
-        # Use the shared formatting utility for consistent display
+        # Use the shared formatting utility for consistent display, but first clean up question grammar/fluency
         import sys, os
         sys.path.append(os.path.join(os.path.dirname(__file__), '../1.1_interface/utils'))
         from format_quiz_context import format_quiz_context
+        def clean_question_text(text):
+            import re
+            # Remove repeated words, fix common grammar, and add punctuation if missing
+            text = text.strip()
+            # Capitalize first letter
+            if text and not text[0].isupper():
+                text = text[0].upper() + text[1:]
+            # Add period if missing
+            if text and text[-1] not in '.?!':
+                text += '.'
+            # Remove double spaces
+            text = re.sub(r'\s+', ' ', text)
+            # Fix common awkward phrases
+            text = re.sub(r'include (\d+ elements?:)', r'including \1', text, flags=re.I)
+            text = re.sub(r'and the print out', 'and then print out', text, flags=re.I)
+            text = re.sub(r'has keys in integer', 'has integer keys', text, flags=re.I)
+            text = re.sub(r'Using the len\(\) function to get', 'Use the len() function to get', text, flags=re.I)
+            text = re.sub(r'\band the\b', 'and', text, flags=re.I)
+            # Remove repeated words (e.g., 'the the')
+            text = re.sub(r'\b(\w+) \1\b', r'\1', text, flags=re.I)
+            # Remove trailing commas before period
+            text = re.sub(r',\s*\.', '.', text)
+            return text
+        # Clean up the question text before formatting
+        q = dict(q)  # Copy to avoid mutating original
+        if 'question' in q:
+            q['question'] = clean_question_text(q['question'])
         return format_quiz_context(q)
 
     def evaluate_answer(self, answer, question):
