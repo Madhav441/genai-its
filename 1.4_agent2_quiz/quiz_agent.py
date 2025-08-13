@@ -117,6 +117,7 @@ class QuizAgent:
             "- If the answer is not correct, kindly point out what could be improved, offer a helpful hint or example, and encourage them to try again.\n"
             "- If the student is exploring a related topic, answer their question fully, then gently prompt them to return to the quiz when ready.\n"
             "- Do not mention scores, rubrics, or evaluation steps in your feedback.\n"
+            "- Ensure that feedback is explicit and unambiguous about correctness.\n"
             "At the end, in a new line, write: SCORE: 1.0 if the answer is correct or mostly correct, or SCORE: 0.0 if not. If the input is a question or exploration, write SCORE: X (where X is the last valid score for this question, or 0.0 if not available).\n"
         )
         # Use rubric model/temperature from .env if specified
@@ -219,7 +220,7 @@ class QuizAgent:
                     "correct:" in feedback_lower or 
                     "great job!" in feedback_lower or 
                     "your answer is correct because" in feedback_lower
-                )
+                ) and "incorrect:" not in feedback_lower
             )
             if is_clearly_correct and self.current_q < len(self.quiz_data) - 1:
                 encouragement = "🌟 Great job! " if score_float > 0.95 else "👍 Well done! "
