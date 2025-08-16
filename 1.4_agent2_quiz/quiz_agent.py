@@ -143,39 +143,33 @@ class QuizAgent:
     def evaluate_answer(self, answer, question):
         rubric = question.get("answer", "")
         kb_content = self.load_knowledgebase()  # Load knowledgebase content
-        # Build a detailed evaluation prompt that instructs the LLM to map feedback to rubric
-        # criteria, to consult the knowledgebase when it provides relevant evidence, and to
-        # return a clear, machine-parseable SCORE line at the end.
-        kb_present = bool(kb_content and kb_content.strip())
-        kb_section = kb_content if kb_present else "(No knowledgebase provided for this subject/week.)"
+        # Restore the previous tutor-style prompt the user requested, but include the
+        # knowledgebase content when available and permit web exploration for
+        # exploratory questions.
+        kb_section = kb_content if kb_content and kb_content.strip() else ""
 
         prompt = (
-            "You are an expert university tutor and an objective rubric-based assessor.\n"
-            "Your task: carefully evaluate the student's answer against the provided marking rubric and the question context.\n\n"
-            "BEGIN PROMPT DATA\n"
+            "You are a professional, supportive university tutor\n"
+            "for a student taking a quiz in a cybersecurity subject.\n"
+            "Here is the quiz question and context:\n"
             f"Question: {question['question']}\n"
             f"Context: {question['context']}\n"
-            "\n"
-            "Knowledgebase (only use if it gives direct evidence relevant to the rubric):\n"
-            f"{kb_section}\n\n"
-            f"Marking Rubric (exact): {rubric}\n"
-            f"Student's Answer: {answer}\n"
-            "END PROMPT DATA\n\n"
-            "ASSESSMENT INSTRUCTIONS (STRICT):\n"
-            "1) For each distinct criterion in the rubric, state whether the student's answer satisfies it, and give a one-line justification. Label each line with the criterion text.\n"
-            "2) If you use material from the Knowledgebase to support a judgement, explicitly cite it by indicating an identifying phrase or filename from the KB and the relevant excerpt or page reference in square brackets, e.g. [KB: filename.pdf] or [KB excerpt: '...']. If the KB is not relevant, say so.\n"
-            "3) Provide an overall short summary judgement (one sentence).\n"
-            "4) Provide concise, actionable feedback telling the student what to correct or improve.\n"
-            "5) Where helpful, include a short model answer or correction (1-3 sentences) that shows the expected answer.\n"
-            "6) Finally, append an exact final line with the token 'SCORE: X' where X is a numeric score between 0.0 and 1.0 (use 1.0 for full credit, 0.5 for partial, 0.0 for none).\n\n"
-            "OUTPUT FORMAT (STRICT, machine-parseable):\n"
-            "Summary: <one-line summary judgement>\n"
-            "Criteria:\n"
-            "- <Criterion 1 text>: <Met or Not met> — <justification>\n"
-            "- <Criterion 2 text>: <Met or Not met> — <justification>\n"
-            "Feedback: <concise actionable feedback>\n"
-            "Model answer: <short model answer or correction>\n"
-            "SCORE:"
+            f"Knowledgebase: {kb_section}\n"
+            f"Marking Rubric: {rubric}\n"
+            f"Student's Input: {answer}\n"
+            "INSTRUCTIONS:\n"
+            "- If the student's input is a direct answer to the quiz question, use the rubric to assess it.\n"
+            "- If the answer is correct or mostly correct, start your reply with a clear statement like 'Correct:' or 'Great job! Your answer is correct because...' and then briefly explain why.\n"
+            "- If the answer is incorrect, start your reply with a clear statement like 'Incorrect:' or 'Your answer is not correct because...' and then briefly explain why.\n"
+            "- Do NOT explain your own steps or what you are doing. Do NOT mention the rubric, criteria, or that you are assessing.\n"
+            "- Be concise, professional, and humanlike.\n"
+            "- If the input is a question or exploration (e.g., starts with 'how', 'why', 'what', or ends with '?'), respond in a helpful, detailed way; you may consult the web to provide the best answer if required, but do not mention your own process.\n"
+            "- Always relate your explanation or example to cybersecurity concepts, best practices, or real-world scenarios where possible.\n"
+            "- If the answer is correct, you may offer a brief extension or related insight (preferably with a cybersecurity angle), but do not state 'next question' or similar.\n"
+            "- If the answer is not correct, kindly point out what could be improved, offer a helpful hint or example, and encourage them to try again.\n"
+            "- If the student is exploring a related topic, answer their question fully, then gently prompt them to return to the quiz when ready.\n"
+            "- Do not mention scores, rubrics, or evaluation steps in your feedback.\n"
+            "At the end, in a new line, write: SCORE: 1.0 if the answer is correct or mostly correct, or SCORE: 0.0 if not. If the input is a question or exploration, write SCORE: X (where X is the last valid score for this question, or 0.0 if not available).\n"
         )
         eval_llm = get_groq_llm()
         response = eval_llm.invoke([{"role": "system", "content": prompt}]).content.strip()
