@@ -102,10 +102,38 @@ class QuizAgent:
             doc = db.collection("knowledgebase").document(doc_id).get()
             if doc.exists:
                 kb = doc.to_dict().get("knowledgebase", [])
-                # KB can be a list of filenames or strings; join into one text blob for the LLM.
+                # KB can be a list of filenames, strings, or metadata dicts.
+                contents = []
                 if isinstance(kb, list):
-                    return "\n\n".join([str(x) for x in kb])
-                return str(kb)
+                    for item in kb:
+                        if isinstance(item, dict):
+                            # Prefer stored file content if available
+                            c = item.get("content")
+                            if c:
+                                contents.append(str(c))
+                            else:
+                                # Fallback to name or url if no content field
+                                if item.get("url"):
+                                    contents.append(str(item.get("url")))
+                                else:
+                                    contents.append(str(item.get("name", "")))
+                        else:
+                            contents.append(str(item))
+                else:
+                    # Single string or dict-like
+                    if isinstance(kb, dict):
+                        c = kb.get("content")
+                        if c:
+                            contents.append(str(c))
+                        elif kb.get("url"):
+                            contents.append(str(kb.get("url")))
+                        else:
+                            contents.append(str(kb.get("name", "")))
+                    else:
+                        contents.append(str(kb))
+
+                # Join available content into a single blob for the LLM prompt
+                return "\n\n".join([c for c in contents if c])
         except Exception:
             # Swallow errors and fall back to empty content so evaluation still works.
             pass

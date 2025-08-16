@@ -241,16 +241,38 @@ if st.session_state.page == 'teacher':
                 else:
                     normalized.append({"name": str(it), "type": "unknown", "content": None})
 
-            # Read uploaded content for text files; for PDF keep name and None content for now
+            # Read uploaded content for text files; for PDF upload to Cloud Storage if configured
             try:
                 file_bytes = uploaded_kb.getvalue()
                 mimetype = getattr(uploaded_kb, 'type', None) or uploaded_kb.name.split('.')[-1]
                 content_text = None
+                url = None
                 if uploaded_kb.name.lower().endswith('.txt') or (mimetype and 'text' in mimetype):
                     content_text = file_bytes.decode('utf-8', errors='ignore')
-                normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text})
+                elif uploaded_kb.name.lower().endswith('.pdf'):
+                    # If Streamlit secrets has GCS config, upload PDF to GCS and store URL
+                    gcs_cfg = st.secrets.get('GCS', None)
+                    if gcs_cfg and gcs_cfg.get('bucket'):
+                        try:
+                            from google.cloud import storage
+                            client = storage.Client()
+                            bucket = client.bucket(gcs_cfg['bucket'])
+                            blob_name = f"knowledgebase/{subject}/{week}/{uploaded_kb.name}"
+                            blob = bucket.blob(blob_name)
+                            blob.upload_from_string(file_bytes, content_type='application/pdf')
+                            # Make blob publicly readable if configured
+                            if gcs_cfg.get('make_public'):
+                                blob.make_public()
+                                url = blob.public_url
+                            else:
+                                # Store gs:// path
+                                url = f"gs://{gcs_cfg['bucket']}/{blob_name}"
+                        except Exception:
+                            url = None
+
+                normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
             except Exception:
-                normalized.append({"name": uploaded_kb.name, "type": "unknown", "content": None})
+                normalized.append({"name": uploaded_kb.name, "type": "unknown", "content": None, "url": None})
 
             save_knowledgebase_to_firestore(subject, week, normalized)
             st.success("Knowledgebase uploaded successfully!")
