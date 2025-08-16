@@ -46,7 +46,7 @@ required_dirs = [
     "data/quiz_sessions"
 ]
 for d in required_dirs:
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(os.path.join(BASE, d), exist_ok=True)
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
@@ -218,126 +218,42 @@ if st.session_state.page == 'teacher':
             st.markdown("### Existing Knowledgebase Files")
             if knowledgebase_files:
                 for file in knowledgebase_files:
-                    st.markdown(f"- {file}")
+                    # file may be a string (old format) or a dict with metadata
+                    if isinstance(file, dict):
+                        st.markdown(f"- {file.get('name')} ({file.get('type', 'unknown')})")
+                    else:
+                        st.markdown(f"- {file}")
             else:
                 st.markdown("No knowledgebase files found.")
 
-    else:
-        # Upload new quiz flow
-        st.info("Upload a new quiz PDF to create a new quiz.")
-        subject = st.text_input("Enter Subject Name (e.g. COMP801)", key="new_subject")
-        week = st.text_input("Enter Week (e.g. Week 1)", key="new_week")
-        uploaded_pdf = st.file_uploader("Upload Quiz PDF", type=["pdf"], key="new_quiz_pdf")
-        if subject and week and uploaded_pdf:
-            # Save uploaded PDF to a temp location
-            temp_pdf_path = os.path.join("data", "uploaded_pdfs", uploaded_pdf.name)
-            os.makedirs(os.path.dirname(temp_pdf_path), exist_ok=True)
-            with open(temp_pdf_path, "wb") as f:
-                f.write(uploaded_pdf.read())
-            import quiz_extractor
-            # Only run extraction if not already done for this PDF
-            if 'uploaded_pdf_name' not in st.session_state or st.session_state.uploaded_pdf_name != uploaded_pdf.name:
-                with st.spinner("Extracting questions from PDF (Pass 1)..."):
-                    try:
-                        questions = quiz_extractor.extract_questions_from_pdf(temp_pdf_path)
-                        st.session_state.uploaded_questions = questions
-                        st.session_state.uploaded_pdf_name = uploaded_pdf.name
-                    except Exception as e:
-                        st.error(f"Error processing PDF: {e}")
-                        st.session_state.uploaded_questions = []
-            # If already extracted, use session state
-            questions = st.session_state.get('uploaded_questions', [])
-            if questions:
-                st.success(f"Extracted {len(questions)} questions. You can edit them below before saving.")
-                # Buttons to re-run Pass 2 and Pass 3
-                if st.button("Re-run Pass 2: Enrich Context"):
-                    with st.spinner("Re-enriching context for all questions (Pass 2)..."):
-                        enriched_questions = []
-                        llm = quiz_extractor.get_llm()
-                        pdf_text = quiz_extractor._pdf_to_text(temp_pdf_path)
-                        for idx, q in enumerate(st.session_state.uploaded_questions, start=1):
-                            q.setdefault("id", idx)
-                            try:
-                                enrich_prompt = quiz_extractor.ENRICH_PROMPT.format(
-                                    pdf_text=pdf_text,
-                                    question=q["question"],
-                                    context=q["context"],
-                                )
-                                enriched_context = llm.invoke(
-                                    [
-                                        {"role": "system", "content": "Return ONLY the enriched context as plain text. Do not add any preamble or conclusion."},
-                                        {"role": "user", "content": enrich_prompt},
-                                    ],
-                                    temperature=0.2
-                                ).content
-                                cleaned_context = quiz_extractor.clean_enriched_context(enriched_context)
-                                if len(cleaned_context) < 40 or cleaned_context.lower().startswith("the question is asking"):
-                                    q_text = q["question"][:40]
-                                    pdf_lines = pdf_text.splitlines()
-                                    relevant_lines = [line for line in pdf_lines if q_text.split()[0] in line or any(x in line for x in ["=", "print", ":", "+", "input", "output"])]
-                                    if relevant_lines:
-                                        cleaned_context += "\n" + "\n".join(relevant_lines[:6])
-                                q["context"] = cleaned_context.strip()
-                            except Exception as e:
-                                st.warning(f"⚠️ Error enriching context for Q{idx}: {e}")
-                            enriched_questions.append(q)
-                        st.session_state.uploaded_questions = enriched_questions
-                        st.success("Pass 2 complete: Context enriched.")
-                if st.button("Re-run Pass 3: Generate Rubrics"):
-                    with st.spinner("Generating rubrics for all questions (Pass 3)..."):
-                        rubric_questions = []
-                        llm = quiz_extractor.get_llm()
-                        for q in st.session_state.uploaded_questions:
-                            try:
-                                rubric_prompt = quiz_extractor.RUBRIC_PROMPT.format(
-                                    question=q["question"],
-                                    context=q["context"],
-                                )
-                                rubric_response = llm.invoke(
-                                    [
-                                        {"role": "system", "content": "Return the marking rubric as plain text."},
-                                        {"role": "user", "content": rubric_prompt},
-                                    ]
-                                ).content
-                                q["answer"] = rubric_response.strip()
-                            except Exception as e:
-                                st.warning(f"⚠️ Error generating rubric for Q{q['id']}: {e}")
-                                q["answer"] = "Rubric generation failed."
-                            rubric_questions.append(q)
-                        st.session_state.uploaded_questions = rubric_questions
-                        st.success("Pass 3 complete: Rubrics generated.")
-                # Always show the questions for editing
-                edited_questions = []
-                for q in st.session_state.uploaded_questions:
-                    with st.expander(f"Question {q.get('id', '')}: {q.get('question', '')}"):
-                        st.markdown(format_quiz_context(q), unsafe_allow_html=True)
-                        new_question = st.text_area("Question", value=q.get('question', ''), key=f"new_q_{q.get('id','')}_question")
-                        new_context = st.text_area("Context", value=q.get('context', ''), key=f"new_q_{q.get('id','')}_context", height=150)
-                        new_rubric = st.text_area("Rubric", value=q.get('answer', ''), key=f"new_q_{q.get('id','')}_rubric", height=200)
-                        edited_questions.append({
-                            "id": q.get('id',''),
-                            "question": new_question,
-                            "context": new_context,
-                            "answer": new_rubric
-                        })
-                # If no expanders are opened, still save the current questions
-                if not edited_questions:
-                    edited_questions = st.session_state.uploaded_questions
-                if st.button("Save Quiz"):
-                    save_quiz_to_firestore(subject, week, edited_questions)
-                    st.success(f"Quiz saved to Firestore for {subject} / {week}. It is now available to students.")
-            else:
-                st.warning("No questions extracted. Please check the PDF.")
-
-            set_query_params()  # Update query params after any changes
-
     # Add functionality for uploading knowledgebase files under subject and week selection
-    uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"], key="upload_kb")
-    if uploaded_kb:
-        knowledgebase_files = load_knowledgebase_from_firestore(subject, week)
-        knowledgebase_files.append(uploaded_kb.name)
-        save_knowledgebase_to_firestore(subject, week, knowledgebase_files)
-        st.success("Knowledgebase uploaded successfully!")
+    # Only show uploader when a subject and week are selected (prevent saving to None_None)
+    if subject and week:
+        uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"], key="upload_kb")
+        if uploaded_kb:
+            # Load existing KB entries (may be list of filenames or metadata dicts)
+            existing = load_knowledgebase_from_firestore(subject, week) or []
+            # Normalize existing entries into list of dicts
+            normalized = []
+            for it in existing:
+                if isinstance(it, dict):
+                    normalized.append(it)
+                else:
+                    normalized.append({"name": str(it), "type": "unknown", "content": None})
+
+            # Read uploaded content for text files; for PDF keep name and None content for now
+            try:
+                file_bytes = uploaded_kb.getvalue()
+                mimetype = getattr(uploaded_kb, 'type', None) or uploaded_kb.name.split('.')[-1]
+                content_text = None
+                if uploaded_kb.name.lower().endswith('.txt') or (mimetype and 'text' in mimetype):
+                    content_text = file_bytes.decode('utf-8', errors='ignore')
+                normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text})
+            except Exception:
+                normalized.append({"name": uploaded_kb.name, "type": "unknown", "content": None})
+
+            save_knowledgebase_to_firestore(subject, week, normalized)
+            st.success("Knowledgebase uploaded successfully!")
 
 elif st.session_state.page == 'student_login':
     st.sidebar.empty()
