@@ -142,11 +142,42 @@ class QuizAgent:
 
     def evaluate_answer(self, answer, question):
         rubric = question.get("answer", "")
-        kb_content = self.load_knowledgebase()  # Load knowledgebase content
-        # Restore the previous tutor-style prompt the user requested, but include the
-        # knowledgebase content when available and permit web exploration for
-        # exploratory questions.
-        kb_section = kb_content if kb_content and kb_content.strip() else ""
+        # Attempt RAG retrieval for this subject/week. Falls back to existing KB blob if retrieval is unavailable.
+        retrieved_section = ""
+        try:
+            # Try relative import first (same package); fallback to top-level
+            try:
+                from .kb_rag import query_kb, build_index_from_firestore_kb
+            except Exception:
+                from kb_rag import query_kb, build_index_from_firestore_kb
+
+            idx_path = os.path.join('data', 'knowledgebase_vectors', f"{self.subject}_{self.week}")
+            if not os.path.exists(idx_path):
+                # Build index (synchronous). For large KBs this may take time.
+                try:
+                    build_index_from_firestore_kb(self.subject, self.week)
+                except Exception:
+                    pass
+
+            # Use the question text to retrieve relevant KB chunks
+            try:
+                retrieved = query_kb(self.subject, self.week, question.get('question',''), top_k=3)
+            except Exception:
+                retrieved = []
+
+            if retrieved:
+                lines = []
+                for tag, chunk in retrieved:
+                    excerpt = (chunk[:700] + '...') if len(chunk) > 700 else chunk
+                    lines.append(f"{tag} {excerpt}")
+                retrieved_section = "\n".join(lines)
+        except Exception:
+            # Any failure in RAG shouldn't break evaluation — fall back to raw KB content
+            retrieved_section = ""
+
+        # Also include small raw KB blob if present (useful for tiny KBs)
+        kb_blob = self.load_knowledgebase()
+        kb_section = kb_blob if kb_blob and kb_blob.strip() else ""
 
         prompt = (
             "You are a professional, supportive university tutor\n"
@@ -154,10 +185,12 @@ class QuizAgent:
             "Here is the quiz question and context:\n"
             f"Question: {question['question']}\n"
             f"Context: {question['context']}\n"
-            f"Knowledgebase: {kb_section}\n"
+            f"Retrieved Knowledgebase Chunks:\n{retrieved_section}\n"
+            f"Inline KB Blob (fallback): {kb_section}\n"
             f"Marking Rubric: {rubric}\n"
             f"Student's Input: {answer}\n"
             "INSTRUCTIONS:\n"
+            "- If you use material from the Retrieved Knowledgebase Chunks or Inline KB Blob to support any judgement, include an inline citation token exactly as it appears in the chunk (e.g. [KB:filename.pdf#chunk0]).\n"
             "- If the student's input is a direct answer to the quiz question, use the rubric to assess it.\n"
             "- If the answer is correct or mostly correct, start your reply with a clear statement like 'Correct:' or 'Great job! Your answer is correct because...' and then briefly explain why.\n"
             "- If the answer is incorrect, start your reply with a clear statement like 'Incorrect:' or 'Your answer is not correct because...' and then briefly explain why.\n"
