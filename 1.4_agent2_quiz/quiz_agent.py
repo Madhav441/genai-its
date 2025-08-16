@@ -143,19 +143,39 @@ class QuizAgent:
     def evaluate_answer(self, answer, question):
         rubric = question.get("answer", "")
         kb_content = self.load_knowledgebase()  # Load knowledgebase content
+        # Build a detailed evaluation prompt that instructs the LLM to map feedback to rubric
+        # criteria, to consult the knowledgebase when it provides relevant evidence, and to
+        # return a clear, machine-parseable SCORE line at the end.
+        kb_present = bool(kb_content and kb_content.strip())
+        kb_section = kb_content if kb_present else "(No knowledgebase provided for this subject/week.)"
+
         prompt = (
-            f"You are a professional, supportive university tutor for a student taking a quiz in a cybersecurity subject.\n"
-            f"Here is the quiz question and context:\n"
+            "You are an expert university tutor and an objective rubric-based assessor.\n"
+            "Your task: carefully evaluate the student's answer against the provided marking rubric and the question context.\n\n"
+            "BEGIN PROMPT DATA\n"
             f"Question: {question['question']}\n"
             f"Context: {question['context']}\n"
-            f"Knowledgebase: {kb_content}\n"  # Include knowledgebase content
-            f"Marking Rubric: {rubric}\n"
-            f"Student's Input: {answer}\n\n"
-            "INSTRUCTIONS (STRICT):\n"
-            "- If the Student's Input is a question or exploration (e.g., starts with 'how', 'why', 'what', or ends with a '?'), respond in a helpful, detailed way, and explore the web to provide the best answer if required.\n"
-            "- Carefully assess the student's input using ONLY the rubric criteria and knowledgebase content.\n"
-            "- Provide feedback that is explicit and unambiguous about correctness.\n"
-            "- At the end, write: SCORE: 1.0 if the answer is correct or mostly correct, or SCORE: 0.0 if not.\n"
+            "\n"
+            "Knowledgebase (only use if it gives direct evidence relevant to the rubric):\n"
+            f"{kb_section}\n\n"
+            f"Marking Rubric (exact): {rubric}\n"
+            f"Student's Answer: {answer}\n"
+            "END PROMPT DATA\n\n"
+            "ASSESSMENT INSTRUCTIONS (STRICT):\n"
+            "1) For each distinct criterion in the rubric, state whether the student's answer satisfies it, and give a one-line justification. Label each line with the criterion text.\n"
+            "2) If you use material from the Knowledgebase to support a judgement, explicitly cite it by indicating an identifying phrase or filename from the KB and the relevant excerpt or page reference in square brackets, e.g. [KB: filename.pdf] or [KB excerpt: '...']. If the KB is not relevant, say so.\n"
+            "3) Provide an overall short summary judgement (one sentence).\n"
+            "4) Provide concise, actionable feedback telling the student what to correct or improve.\n"
+            "5) Where helpful, include a short model answer or correction (1-3 sentences) that shows the expected answer.\n"
+            "6) Finally, append an exact final line with the token 'SCORE: X' where X is a numeric score between 0.0 and 1.0 (use 1.0 for full credit, 0.5 for partial, 0.0 for none).\n\n"
+            "OUTPUT FORMAT (STRICT, machine-parseable):\n"
+            "Summary: <one-line summary judgement>\n"
+            "Criteria:\n"
+            "- <Criterion 1 text>: <Met or Not met> — <justification>\n"
+            "- <Criterion 2 text>: <Met or Not met> — <justification>\n"
+            "Feedback: <concise actionable feedback>\n"
+            "Model answer: <short model answer or correction>\n"
+            "SCORE:"
         )
         eval_llm = get_groq_llm()
         response = eval_llm.invoke([{"role": "system", "content": prompt}]).content.strip()
