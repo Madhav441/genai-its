@@ -210,9 +210,45 @@ if st.session_state.page == 'teacher':
                     deduped.append(file)
                 for file in deduped:
                     if isinstance(file, dict):
-                        st.markdown(f"- {file.get('name')} ({file.get('type', 'unknown')})")
+                        display_name = file.get('name')
+                        display_type = file.get('type', 'unknown')
+                        uploaded_at = file.get('uploaded_at')
+                        uploader = file.get('uploader')
+                        extra = f" — uploaded by {uploader}" if uploader else ""
+                        if uploaded_at:
+                            extra += f" on {uploaded_at.split('T')[0]}"
+                        st.markdown(f"- {display_name} ({display_type}){extra}")
                     else:
                         st.markdown(f"- {file}")
+
+                # Allow teacher to clean duplicates / empty entries in Firestore for this subject/week
+                if st.button("Clean KB duplicates / remove empty entries", key=f"clean_kb_{subject}_{week}"):
+                    orig = load_knowledgebase_from_firestore(subject, week) or []
+                    cleaned = []
+                    seen_names = set()
+                    for it in orig:
+                        if isinstance(it, dict):
+                            name = it.get('name')
+                            content = it.get('content')
+                            url = it.get('url')
+                            if not name:
+                                continue
+                            if name in seen_names:
+                                continue
+                            # skip entries with no content and no url
+                            if not content and not url:
+                                continue
+                            seen_names.add(name)
+                            cleaned.append(it)
+                        else:
+                            name = str(it)
+                            if name in seen_names:
+                                continue
+                            seen_names.add(name)
+                            cleaned.append({"name": name, "type": "unknown", "content": None})
+                    save_knowledgebase_to_firestore(subject, week, cleaned)
+                    st.success("Knowledgebase cleaned; duplicates and empty entries removed.")
+                    st.experimental_rerun()
             else:
                 st.info("No knowledgebase files found for this subject/week.")
 
@@ -291,8 +327,20 @@ if st.session_state.page == 'teacher':
                                 replaced = True
                             else:
                                 merged.append({"name": name, "type": "unknown", "content": None, "url": None})
-                    if not replaced:
-                        merged.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
+                    # Only save the new entry if it contains useful data (content or URL)
+                    uploader_id = st.session_state.get('student_id') or st.session_state.get('teacher_id') or 'teacher'
+                    from datetime import datetime
+                    if content_text or url or (uploaded_kb.name.lower().endswith('.txt') and content_text is not None):
+                        entry = {"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url, "uploaded_at": datetime.utcnow().isoformat(), "uploader": uploader_id}
+                        if not replaced:
+                            merged.append(entry)
+                    else:
+                        # If the uploaded file produced no content and wasn't uploaded to cloud, do not add it
+                        progress.text("Uploaded file produced no extractable content; not saving an empty KB entry.")
+                        save_knowledgebase_to_firestore(subject, week, merged)
+                        progress.success("Knowledgebase saved (no new entry added).")
+                        st.experimental_rerun()
+                    # If the new entry was appended earlier, ensure it's saved now
                     save_knowledgebase_to_firestore(subject, week, merged)
                     progress.success("Knowledgebase uploaded and saved.")
                     st.experimental_rerun()
