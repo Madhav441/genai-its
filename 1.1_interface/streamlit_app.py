@@ -92,10 +92,27 @@ def load_quiz_from_firestore(subject, week):
 
 def save_knowledgebase_to_firestore(subject, week, knowledgebase):
     doc_id = f"{subject}_{week}_kb"
+    # Normalize entries before saving: ensure each item is a dict with predictable fields
+    normalized = []
+    for it in (knowledgebase or []):
+        if isinstance(it, dict):
+            name = (it.get('name') or '').replace('\n', ' ').strip()
+            normalized.append({
+                'name': name,
+                'type': it.get('type', 'unknown'),
+                'content': it.get('content'),
+                'url': it.get('url'),
+                'uploaded_at': it.get('uploaded_at'),
+                'uploader': it.get('uploader')
+            })
+        else:
+            name = str(it).replace('\n', ' ').strip()
+            normalized.append({'name': name, 'type': 'unknown', 'content': None, 'url': None})
+
     db.collection("knowledgebase").document(doc_id).set({
         "subject": subject,
         "week": week,
-        "knowledgebase": knowledgebase
+        "knowledgebase": normalized
     })
 
 # Function to load knowledgebase from Firebase
@@ -104,7 +121,24 @@ def load_knowledgebase_from_firestore(subject, week):
     doc_id = f"{subject}_{week}_kb"
     doc = db.collection("knowledgebase").document(doc_id).get()
     if doc.exists:
-        return doc.to_dict().get("knowledgebase", [])
+        kb = doc.to_dict().get("knowledgebase", [])
+        # Normalize returned KB into list of dicts with cleaned names
+        normalized = []
+        for it in (kb or []):
+            if isinstance(it, dict):
+                name = (it.get('name') or '').replace('\n', ' ').strip()
+                normalized.append({
+                    'name': name,
+                    'type': it.get('type', 'unknown'),
+                    'content': it.get('content'),
+                    'url': it.get('url'),
+                    'uploaded_at': it.get('uploaded_at'),
+                    'uploader': it.get('uploader')
+                })
+            else:
+                name = str(it).replace('\n', ' ').strip()
+                normalized.append({'name': name, 'type': 'unknown', 'content': None, 'url': None})
+        return normalized
     return []
 
 # ── Streamlit layout ──────────────────────────────────────────────────
