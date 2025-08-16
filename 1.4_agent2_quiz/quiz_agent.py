@@ -96,9 +96,21 @@ class QuizAgent:
         return format_quiz_context(q)
 
     def load_knowledgebase(self):
-        # Load knowledgebase content from a file or database
-        # For this example, we'll just return a static string
-        return "Knowledgebase content goes here."
+        # Load subject/week-specific knowledgebase content from Firestore if available.
+        try:
+            doc_id = f"{self.subject}_{self.week}_kb"
+            doc = db.collection("knowledgebase").document(doc_id).get()
+            if doc.exists:
+                kb = doc.to_dict().get("knowledgebase", [])
+                # KB can be a list of filenames or strings; join into one text blob for the LLM.
+                if isinstance(kb, list):
+                    return "\n\n".join([str(x) for x in kb])
+                return str(kb)
+        except Exception:
+            # Swallow errors and fall back to empty content so evaluation still works.
+            pass
+        # Fall back to empty string when no KB is present.
+        return ""
 
     def evaluate_answer(self, answer, question):
         rubric = question.get("answer", "")
