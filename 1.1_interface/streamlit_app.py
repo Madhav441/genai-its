@@ -222,13 +222,6 @@ if st.session_state.page == 'teacher':
             else:
                 st.markdown("No knowledgebase files found.")
 
-            # Upload new knowledgebase file
-            uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"])
-            if uploaded_kb:
-                knowledgebase_files.append(uploaded_kb.name)
-                save_knowledgebase_to_firestore(subject, week, knowledgebase_files)
-                st.success("Knowledgebase uploaded successfully!")
-
     else:
         # Upload new quiz flow
         st.info("Upload a new quiz PDF to create a new quiz.")
@@ -337,6 +330,14 @@ if st.session_state.page == 'teacher':
                 st.warning("No questions extracted. Please check the PDF.")
 
             set_query_params()  # Update query params after any changes
+
+    # Add functionality for uploading knowledgebase files under subject and week selection
+    uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"], key="upload_kb")
+    if uploaded_kb:
+        knowledgebase_files = load_knowledgebase_from_firestore(subject, week)
+        knowledgebase_files.append(uploaded_kb.name)
+        save_knowledgebase_to_firestore(subject, week, knowledgebase_files)
+        st.success("Knowledgebase uploaded successfully!")
 
 elif st.session_state.page == 'student_login':
     st.sidebar.empty()
