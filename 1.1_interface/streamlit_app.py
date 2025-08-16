@@ -227,6 +227,10 @@ if st.session_state.page == 'teacher':
                 st.markdown("No knowledgebase files found.")
 
     # Add functionality for uploading knowledgebase files under subject and week selection
+    # Resolve `subject` and `week` safely from local scope or session state
+    subject = locals().get('subject') or st.session_state.get('teacher_subject') or st.session_state.get('new_subject') or st.session_state.get('student_subject')
+    week = locals().get('week') or st.session_state.get('teacher_week') or st.session_state.get('new_week') or st.session_state.get('student_week')
+
     # Only show uploader when a subject and week are selected (prevent saving to None_None)
     if subject and week:
         uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"], key="upload_kb")
