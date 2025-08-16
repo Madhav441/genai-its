@@ -34,6 +34,7 @@ sys.path.extend(
 
 from document_loader import load_and_embed_pdf
 from quiz_extractor import extract_questions_from_pdf
+from quiz_agent import QuizAgent
 
 # Ensure all required data directories exist
 required_dirs = [
@@ -68,6 +69,27 @@ def load_quiz_from_firestore(subject, week):
         return doc.to_dict().get("questions", [])
     else:
         return []
+
+# Add functionality for uploading and managing knowledgebase files
+
+# Function to save knowledgebase to Firebase
+
+def save_knowledgebase_to_firestore(subject, week, knowledgebase):
+    doc_id = f"{subject}_{week}_kb"
+    db.collection("knowledgebase").document(doc_id).set({
+        "subject": subject,
+        "week": week,
+        "knowledgebase": knowledgebase
+    })
+
+# Function to load knowledgebase from Firebase
+
+def load_knowledgebase_from_firestore(subject, week):
+    doc_id = f"{subject}_{week}_kb"
+    doc = db.collection("knowledgebase").document(doc_id).get()
+    if doc.exists:
+        return doc.to_dict().get("knowledgebase", [])
+    return []
 
 # ── Streamlit layout ──────────────────────────────────────────────────
 # Main entry page: login/role selection
@@ -190,6 +212,23 @@ if st.session_state.page == 'teacher':
             if st.button("Save All Changes"):
                 save_quiz_to_firestore(subject, week, edited_questions)
                 st.success(f"Saved edited quiz to Firestore for {subject} / {week}")
+        else:
+            # Display existing knowledgebase files
+            knowledgebase_files = load_knowledgebase_from_firestore(subject, week)
+            st.markdown("### Existing Knowledgebase Files")
+            if knowledgebase_files:
+                for file in knowledgebase_files:
+                    st.markdown(f"- {file}")
+            else:
+                st.markdown("No knowledgebase files found.")
+
+            # Upload new knowledgebase file
+            uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"])
+            if uploaded_kb:
+                knowledgebase_files.append(uploaded_kb.name)
+                save_knowledgebase_to_firestore(subject, week, knowledgebase_files)
+                st.success("Knowledgebase uploaded successfully!")
+
     else:
         # Upload new quiz flow
         st.info("Upload a new quiz PDF to create a new quiz.")
