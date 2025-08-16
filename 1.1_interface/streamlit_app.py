@@ -254,25 +254,48 @@ if st.session_state.page == 'teacher':
                 if uploaded_kb.name.lower().endswith('.txt') or (mimetype and 'text' in mimetype):
                     content_text = file_bytes.decode('utf-8', errors='ignore')
                 elif uploaded_kb.name.lower().endswith('.pdf'):
-                    # If Streamlit secrets has GCS config, upload PDF to GCS and store URL
-                    gcs_cfg = st.secrets.get('GCS', None)
-                    if gcs_cfg and gcs_cfg.get('bucket'):
+                    # Save PDF to a temp path in the workspace so we can extract text from it
+                    try:
+                        temp_dir = os.path.join(BASE, 'data', 'uploaded_pdfs', 'kb', subject, week)
+                        os.makedirs(temp_dir, exist_ok=True)
+                        temp_pdf_path = os.path.join(temp_dir, uploaded_kb.name)
+                        with open(temp_pdf_path, 'wb') as tf:
+                            tf.write(file_bytes)
+
+                        # Use the existing quiz_extractor utility to extract text from the PDF
                         try:
-                            from google.cloud import storage
-                            client = storage.Client()
-                            bucket = client.bucket(gcs_cfg['bucket'])
-                            blob_name = f"knowledgebase/{subject}/{week}/{uploaded_kb.name}"
-                            blob = bucket.blob(blob_name)
-                            blob.upload_from_string(file_bytes, content_type='application/pdf')
-                            # Make blob publicly readable if configured
-                            if gcs_cfg.get('make_public'):
-                                blob.make_public()
-                                url = blob.public_url
-                            else:
-                                # Store gs:// path
-                                url = f"gs://{gcs_cfg['bucket']}/{blob_name}"
+                            import quiz_extractor
+                            extracted_text = quiz_extractor._pdf_to_text(temp_pdf_path)
+                            # Basic cleanup
+                            if extracted_text:
+                                content_text = extracted_text.strip()
                         except Exception:
-                            url = None
+                            # Extraction failed; leave content_text as None
+                            content_text = None
+
+                        # If Streamlit secrets has GCS config, upload PDF to GCS and store URL
+                        gcs_cfg = st.secrets.get('GCS', None)
+                        if gcs_cfg and gcs_cfg.get('bucket'):
+                            try:
+                                from google.cloud import storage
+                                client = storage.Client()
+                                bucket = client.bucket(gcs_cfg['bucket'])
+                                blob_name = f"knowledgebase/{subject}/{week}/{uploaded_kb.name}"
+                                blob = bucket.blob(blob_name)
+                                blob.upload_from_filename(temp_pdf_path, content_type='application/pdf')
+                                # Make blob publicly readable if configured
+                                if gcs_cfg.get('make_public'):
+                                    blob.make_public()
+                                    url = blob.public_url
+                                else:
+                                    # Store gs:// path
+                                    url = f"gs://{gcs_cfg['bucket']}/{blob_name}"
+                            except Exception:
+                                url = None
+                    except Exception:
+                        # If writing or extraction fails, proceed without content/url
+                        content_text = None
+                        url = None
 
                 normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
             except Exception:
