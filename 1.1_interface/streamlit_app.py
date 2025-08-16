@@ -36,6 +36,22 @@ from document_loader import load_and_embed_pdf
 from quiz_extractor import extract_questions_from_pdf
 from quiz_agent import QuizAgent
 
+# Compatibility helper: some Streamlit versions expose experimental_rerun, others only have rerun
+def safe_rerun():
+    try:
+        rerun_fn = getattr(st, 'experimental_rerun', None)
+        if callable(rerun_fn):
+            rerun_fn()
+            return
+    except Exception:
+        pass
+    # Fallback to public API if experimental is not available
+    try:
+        st.rerun()
+    except Exception:
+        # Last-resort: no-op (can't force a rerun safely)
+        return
+
 # Ensure all required data directories exist
 required_dirs = [
     "data/finalised_quizzes",
@@ -312,11 +328,11 @@ if st.session_state.page == 'teacher':
                         progress.text("Uploaded file produced no extractable content; not saving an empty KB entry.")
                         save_knowledgebase_to_firestore(subject, week, merged)
                         progress.success("Knowledgebase saved (no new entry added).")
-                        st.experimental_rerun()
+                        safe_rerun()
                     # If the new entry was appended earlier, ensure it's saved now
                     save_knowledgebase_to_firestore(subject, week, merged)
                     progress.success("Knowledgebase uploaded and saved.")
-                    st.experimental_rerun()
+                    safe_rerun()
 
                 except Exception as e:
                     progress.error(f"Upload failed: {e}")
