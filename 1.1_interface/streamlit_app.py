@@ -199,7 +199,16 @@ if st.session_state.page == 'teacher':
             st.markdown("### Knowledgebase for this quiz")
             knowledgebase_files = load_knowledgebase_from_firestore(subject, week)
             if knowledgebase_files:
+                # Dedupe by filename (preserve first-seen order)
+                seen = set()
+                deduped = []
                 for file in knowledgebase_files:
+                    name = file.get('name') if isinstance(file, dict) else str(file)
+                    if name in seen:
+                        continue
+                    seen.add(name)
+                    deduped.append(file)
+                for file in deduped:
                     if isinstance(file, dict):
                         st.markdown(f"- {file.get('name')} ({file.get('type', 'unknown')})")
                     else:
@@ -261,17 +270,30 @@ if st.session_state.page == 'teacher':
                             except Exception as e:
                                 progress.text(f"Cloud upload failed: {e}")
 
-                    # Save metadata to Firestore
+                    # Save metadata to Firestore (merge by filename, overwrite if exists)
                     progress.text("Saving knowledgebase metadata to Firestore...")
                     existing = load_knowledgebase_from_firestore(subject, week) or []
-                    normalized = []
+                    merged = []
+                    replaced = False
+                    # Preserve existing order; replace entry when the name matches
                     for it in existing:
                         if isinstance(it, dict):
-                            normalized.append(it)
+                            name = it.get('name')
+                            if name == uploaded_kb.name:
+                                merged.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
+                                replaced = True
+                            else:
+                                merged.append(it)
                         else:
-                            normalized.append({"name": str(it), "type": "unknown", "content": None, "url": None})
-                    normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
-                    save_knowledgebase_to_firestore(subject, week, normalized)
+                            name = str(it)
+                            if name == uploaded_kb.name:
+                                merged.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
+                                replaced = True
+                            else:
+                                merged.append({"name": name, "type": "unknown", "content": None, "url": None})
+                    if not replaced:
+                        merged.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
+                    save_knowledgebase_to_firestore(subject, week, merged)
                     progress.success("Knowledgebase uploaded and saved.")
                     st.experimental_rerun()
 
@@ -299,83 +321,15 @@ if st.session_state.page == 'teacher':
                 st.success(f"Saved edited quiz to Firestore for {subject} / {week}")
         else:
             st.info("Select a subject and week with an existing quiz to view or edit questions.")
-    # Add functionality for uploading knowledgebase files under subject and week selection
     # Resolve `subject` and `week` safely from local scope or session state
     subject = locals().get('subject') or st.session_state.get('teacher_subject') or st.session_state.get('new_subject') or st.session_state.get('student_subject')
     week = locals().get('week') or st.session_state.get('teacher_week') or st.session_state.get('new_week') or st.session_state.get('student_week')
 
-    # Only show uploader when a subject and week are selected (prevent saving to None_None)
-    if subject and week:
-        uploaded_kb = st.file_uploader("Upload Knowledgebase", type=["txt", "pdf"], key="upload_kb")
-        if uploaded_kb:
-            # Load existing KB entries (may be list of filenames or metadata dicts)
-            existing = load_knowledgebase_from_firestore(subject, week) or []
-            # Normalize existing entries into list of dicts
-            normalized = []
-            for it in existing:
-                if isinstance(it, dict):
-                    normalized.append(it)
-                else:
-                    normalized.append({"name": str(it), "type": "unknown", "content": None})
-
-            # Read uploaded content for text files; for PDF upload to Cloud Storage if configured
-            try:
-                file_bytes = uploaded_kb.getvalue()
-                mimetype = getattr(uploaded_kb, 'type', None) or uploaded_kb.name.split('.')[-1]
-                content_text = None
-                url = None
-                if uploaded_kb.name.lower().endswith('.txt') or (mimetype and 'text' in mimetype):
-                    content_text = file_bytes.decode('utf-8', errors='ignore')
-                elif uploaded_kb.name.lower().endswith('.pdf'):
-                    # Save PDF to a temp path in the workspace so we can extract text from it
-                    try:
-                        temp_dir = os.path.join(BASE, 'data', 'uploaded_pdfs', 'kb', subject, week)
-                        os.makedirs(temp_dir, exist_ok=True)
-                        temp_pdf_path = os.path.join(temp_dir, uploaded_kb.name)
-                        with open(temp_pdf_path, 'wb') as tf:
-                            tf.write(file_bytes)
-
-                        # Use the existing quiz_extractor utility to extract text from the PDF
-                        try:
-                            import quiz_extractor
-                            extracted_text = quiz_extractor._pdf_to_text(temp_pdf_path)
-                            # Basic cleanup
-                            if extracted_text:
-                                content_text = extracted_text.strip()
-                        except Exception:
-                            # Extraction failed; leave content_text as None
-                            content_text = None
-
-                        # If Streamlit secrets has GCS config, upload PDF to GCS and store URL
-                        gcs_cfg = st.secrets.get('GCS', None)
-                        if gcs_cfg and gcs_cfg.get('bucket'):
-                            try:
-                                from google.cloud import storage
-                                client = storage.Client()
-                                bucket = client.bucket(gcs_cfg['bucket'])
-                                blob_name = f"knowledgebase/{subject}/{week}/{uploaded_kb.name}"
-                                blob = bucket.blob(blob_name)
-                                blob.upload_from_filename(temp_pdf_path, content_type='application/pdf')
-                                # Make blob publicly readable if configured
-                                if gcs_cfg.get('make_public'):
-                                    blob.make_public()
-                                    url = blob.public_url
-                                else:
-                                    # Store gs:// path
-                                    url = f"gs://{gcs_cfg['bucket']}/{blob_name}"
-                            except Exception:
-                                url = None
-                    except Exception:
-                        # If writing or extraction fails, proceed without content/url
-                        content_text = None
-                        url = None
-
-                normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
-            except Exception:
-                normalized.append({"name": uploaded_kb.name, "type": "unknown", "content": None, "url": None})
-
-            save_knowledgebase_to_firestore(subject, week, normalized)
-            st.success("Knowledgebase uploaded successfully!")
+    # NOTE: The per-(subject,week) KB uploader is intentionally shown inside the
+    # "Select Existing Quiz" flow above. The duplicate uploader that used to
+    # appear here has been removed to avoid accidental double-uploads and
+    # confusing UI. Use the "Upload Knowledgebase (TXT or PDF)" control
+    # shown when a subject and week are selected under "Select Existing Quiz".
 
     # Restore the original 'Upload New Quiz' flow when the teacher selects that mode
     if mode == "Upload New Quiz":
