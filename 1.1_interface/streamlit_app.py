@@ -193,6 +193,91 @@ if st.session_state.page == 'teacher':
         weeks = sorted(set(weeks))
         week = st.selectbox("Select Week", weeks if weeks else [], key="teacher_week")
         quiz_data = load_quiz_from_firestore(subject, week) if subject and week else []
+
+        # Show knowledgebase files and uploader for the selected subject/week
+        if subject and week:
+            st.markdown("### Knowledgebase for this quiz")
+            knowledgebase_files = load_knowledgebase_from_firestore(subject, week)
+            if knowledgebase_files:
+                for file in knowledgebase_files:
+                    if isinstance(file, dict):
+                        st.markdown(f"- {file.get('name')} ({file.get('type', 'unknown')})")
+                    else:
+                        st.markdown(f"- {file}")
+            else:
+                st.info("No knowledgebase files found for this subject/week.")
+
+            # KB uploader with progress indicators
+            uploaded_kb = st.file_uploader("Upload Knowledgebase (TXT or PDF)", type=["txt", "pdf"], key=f"upload_kb_{subject}_{week}")
+            if uploaded_kb:
+                progress = st.empty()
+                try:
+                    progress.text("Reading file...")
+                    file_bytes = uploaded_kb.getvalue()
+                    mimetype = getattr(uploaded_kb, 'type', None) or uploaded_kb.name.split('.')[-1]
+                    content_text = None
+                    url = None
+
+                    # If text file, read content
+                    if uploaded_kb.name.lower().endswith('.txt') or (mimetype and 'text' in mimetype):
+                        progress.text("Parsing text file...")
+                        content_text = file_bytes.decode('utf-8', errors='ignore')
+
+                    # If PDF, save temporarily and extract text
+                    elif uploaded_kb.name.lower().endswith('.pdf'):
+                        progress.text("Saving PDF and extracting text (this may take a moment)...")
+                        temp_dir = os.path.join(BASE, 'data', 'uploaded_pdfs', 'kb', subject, week)
+                        os.makedirs(temp_dir, exist_ok=True)
+                        temp_pdf_path = os.path.join(temp_dir, uploaded_kb.name)
+                        with open(temp_pdf_path, 'wb') as tf:
+                            tf.write(file_bytes)
+
+                        try:
+                            import quiz_extractor
+                            extracted_text = quiz_extractor._pdf_to_text(temp_pdf_path)
+                            if extracted_text:
+                                content_text = extracted_text.strip()
+                                progress.text("Text extraction complete.")
+                        except Exception as e:
+                            progress.text(f"Text extraction failed: {e}")
+
+                        # Optional GCS upload
+                        gcs_cfg = st.secrets.get('GCS', None)
+                        if gcs_cfg and gcs_cfg.get('bucket'):
+                            try:
+                                progress.text("Uploading PDF to Cloud Storage...")
+                                from google.cloud import storage
+                                client = storage.Client()
+                                bucket = client.bucket(gcs_cfg['bucket'])
+                                blob_name = f"knowledgebase/{subject}/{week}/{uploaded_kb.name}"
+                                blob = bucket.blob(blob_name)
+                                blob.upload_from_filename(temp_pdf_path, content_type='application/pdf')
+                                if gcs_cfg.get('make_public'):
+                                    blob.make_public()
+                                    url = blob.public_url
+                                else:
+                                    url = f"gs://{gcs_cfg['bucket']}/{blob_name}"
+                                progress.text("PDF uploaded to Cloud Storage.")
+                            except Exception as e:
+                                progress.text(f"Cloud upload failed: {e}")
+
+                    # Save metadata to Firestore
+                    progress.text("Saving knowledgebase metadata to Firestore...")
+                    existing = load_knowledgebase_from_firestore(subject, week) or []
+                    normalized = []
+                    for it in existing:
+                        if isinstance(it, dict):
+                            normalized.append(it)
+                        else:
+                            normalized.append({"name": str(it), "type": "unknown", "content": None, "url": None})
+                    normalized.append({"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url})
+                    save_knowledgebase_to_firestore(subject, week, normalized)
+                    progress.success("Knowledgebase uploaded and saved.")
+                    st.experimental_rerun()
+
+                except Exception as e:
+                    progress.error(f"Upload failed: {e}")
+
         if subject and week and quiz_data:
             st.success(f"Selected quiz: {subject} / {week}")
             questions = quiz_data
@@ -213,19 +298,7 @@ if st.session_state.page == 'teacher':
                 save_quiz_to_firestore(subject, week, edited_questions)
                 st.success(f"Saved edited quiz to Firestore for {subject} / {week}")
         else:
-            # Display existing knowledgebase files
-            knowledgebase_files = load_knowledgebase_from_firestore(subject, week)
-            st.markdown("### Existing Knowledgebase Files")
-            if knowledgebase_files:
-                for file in knowledgebase_files:
-                    # file may be a string (old format) or a dict with metadata
-                    if isinstance(file, dict):
-                        st.markdown(f"- {file.get('name')} ({file.get('type', 'unknown')})")
-                    else:
-                        st.markdown(f"- {file}")
-            else:
-                st.markdown("No knowledgebase files found.")
-
+            st.info("Select a subject and week with an existing quiz to view or edit questions.")
     # Add functionality for uploading knowledgebase files under subject and week selection
     # Resolve `subject` and `week` safely from local scope or session state
     subject = locals().get('subject') or st.session_state.get('teacher_subject') or st.session_state.get('new_subject') or st.session_state.get('student_subject')
