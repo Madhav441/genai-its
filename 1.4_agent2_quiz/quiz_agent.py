@@ -95,53 +95,41 @@ class QuizAgent:
             q['question'] = clean_question_text(q['question'])
         return format_quiz_context(q)
 
+    def load_knowledgebase(self):
+        # Load knowledgebase content from a file or database
+        # For this example, we'll just return a static string
+        return "Knowledgebase content goes here."
+
     def evaluate_answer(self, answer, question):
         rubric = question.get("answer", "")
+        kb_content = self.load_knowledgebase()  # Load knowledgebase content
         prompt = (
             f"You are a professional, supportive university tutor for a student taking a quiz in a cybersecurity subject.\n"
             f"Here is the quiz question and context:\n"
             f"Question: {question['question']}\n"
             f"Context: {question['context']}\n"
+            f"Knowledgebase: {kb_content}\n"  # Include knowledgebase content
             f"Marking Rubric: {rubric}\n"
             f"Student's Input: {answer}\n\n"
             "INSTRUCTIONS (STRICT):\n"
             "- If the Student's Input is a question or exploration (e.g., starts with 'how', 'why', 'what', or ends with a '?'), respond in a helpful, detailed way, and explore the web to provide the best answer if required.\n"
-            "- Carefully assess the student's input using ONLY the rubric criteria.\n"
-            "- If the answer is not a a question or exploration, and is incomplete, off-topic, irrelevant, or does not address the rubric criteria, you MUST mark it as incorrect (SCORE: 0.0) and explain why.\n"
-            "- If the answer is correct or mostly correct, start your reply with 'Correct:' or 'Great job! Your answer is correct because...' and justify the score by referencing specific rubric criteria that are satisfied.\n"
-            "- If the answer is incorrect, start your reply with 'Incorrect:' or 'Your answer is not correct because...' and clearly state which rubric criteria are missing or unsatisfied.\n"
-            "- Do NOT explain your own steps or what you are doing. Do NOT mention the rubric, criteria, or that you are assessing.\n"
-            "- Be concise, professional, and humanlike.\n"
-            "- Always relate your explanation or example to cybersecurity concepts, best practices, or real-world scenarios where possible.\n"
-            "- If the answer is correct, you may offer a brief extension or related insight (preferably with a cybersecurity angle), but do not state 'next question' or similar.\n"
-            "- If the answer is not correct, kindly point out what could be improved, offer a helpful hint or example, and encourage them to try again.\n"
-            "- If the student is exploring a related topic, answer their question fully, then gently prompt them to return to the quiz when ready.\n"
-            "- Do not mention scores, rubrics, or evaluation steps in your feedback.\n"
-            "- Ensure that feedback is explicit and unambiguous about correctness.\n"
-            "At the end, in a new line, write: SCORE: 1.0 if the answer is correct or mostly correct, or SCORE: 0.0 if not. If the input is a question or exploration, write SCORE: X (where X is the last valid score for this question, or 0.0 if not available).\n"
+            "- Carefully assess the student's input using ONLY the rubric criteria and knowledgebase content.\n"
+            "- Provide feedback that is explicit and unambiguous about correctness.\n"
+            "- At the end, write: SCORE: 1.0 if the answer is correct or mostly correct, or SCORE: 0.0 if not.\n"
         )
-        # Use rubric model/temperature from .env if specified
-        rubric_model = os.getenv("QUIZ_AGENT_RUBRIC_MODEL", "meta-llama/llama-4-maverick-17b-128e-instruct")
-        rubric_temp = float(os.getenv("QUIZ_AGENT_RUBRIC_TEMPERATURE", "0.3"))
-        eval_llm = get_groq_llm(model_name=rubric_model, temperature=rubric_temp)
+        eval_llm = get_groq_llm()
         response = eval_llm.invoke([{"role": "system", "content": prompt}]).content.strip()
-        # Parse the score from the last line
         lines = response.splitlines()
         score = 0.0
         for line in reversed(lines):
             if line.strip().startswith("SCORE:"):
                 try:
-                    score_str = line.split(":", 1)[1].strip()
-                    if score_str == 'X':
-                        score = float(self.performance.get("last_score", 0.0))
-                    else:
-                        score = float(score_str)
-                except Exception:
+                    score = float(line.split(":", 1)[1].strip())
+                except ValueError:
                     score = 0.0
                 break
         feedback = "\n".join([l for l in lines if not l.strip().startswith("SCORE:")]).strip()
-        relevant = True
-        return relevant, score, feedback
+        return True, score, feedback
 
     def handle_input(self, user_input, chat_history):
         user_clean = user_input.strip().lower()
