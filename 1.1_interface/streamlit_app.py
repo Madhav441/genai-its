@@ -352,9 +352,9 @@ if st.session_state.page == 'teacher':
                                 merged.append({"name": name, "type": "unknown", "content": None, "url": None})
                     # Only save the new entry if it contains useful data (content or URL)
                     uploader_id = st.session_state.get('student_id') or st.session_state.get('teacher_id') or 'teacher'
-                    from datetime import datetime
+                    from datetime import datetime, timezone
                     if content_text or url or (uploaded_kb.name.lower().endswith('.txt') and content_text is not None):
-                        entry = {"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url, "uploaded_at": datetime.utcnow().isoformat(), "uploader": uploader_id}
+                        entry = {"name": uploaded_kb.name, "type": mimetype, "content": content_text, "url": url, "uploaded_at": datetime.now(timezone.utc).isoformat(), "uploader": uploader_id}
                         if not replaced:
                             merged.append(entry)
                     else:

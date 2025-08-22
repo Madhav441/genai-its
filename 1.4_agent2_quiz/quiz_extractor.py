@@ -41,6 +41,21 @@ Context: <minimal context>
 Separate each question block with a blank line and do not output any extra text.
 """
 
+# When the PDF has instructions/exercises but no explicit questions, synthesize clear questions.
+FALLBACK_SYNTH_PROMPT = """\
+You are an expert teaching assistant.
+
+TASK:
+1. If the PDF contains instructions, exercises, or teaching material without explicit question labels, synthesize 5–10 clear, self-contained quiz questions.
+2. For each question, also provide the minimal context a student needs to answer (but NOT the answer).
+3. Use exactly this plain-text format with a blank line between blocks:
+
+Question: <question text>
+Context: <minimal context>
+
+Return only the blocks, with no extra commentary.
+"""
+
 # ENRICH_PROMPT = textwrap.dedent("""\
 #     ROLE
 #       • Subject-matter teaching assistant
@@ -319,8 +334,22 @@ def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
 
     questions = parse_extracted_questions(response)
     if not questions:
-        st.warning("No questions extracted from the PDF. Please check the file.")
-        return []
+        # Fallback: synthesize questions from instruction-only PDFs
+        st.info("No explicit questions detected. Attempting to synthesize quiz questions from instructions…")
+        try:
+            fallback_resp = llm.invoke(
+                [
+                    {"role": "system", "content": FALLBACK_SYNTH_PROMPT},
+                    {"role": "user", "content": pdf_text},
+                ]
+            ).content
+            questions = parse_extracted_questions(fallback_resp)
+        except Exception as e:
+            st.error(f"Fallback synthesis failed: {e}")
+            return []
+        if not questions:
+            st.warning("No questions could be synthesized from the PDF. Please verify the document contains assessable material.")
+            return []
 
     st.success(f"✅ Pass-1: extracted {len(questions)} questions")
 
