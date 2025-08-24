@@ -373,19 +373,126 @@ if st.session_state.page == 'teacher':
 
         if subject and week and quiz_data:
             st.success(f"Selected quiz: {subject} / {week}")
+
+            # Build a KB text blob from saved knowledgebase entries for enrichment (safe, minimal change)
+            kb_entries = load_knowledgebase_from_firestore(subject, week) or []
+            kb_text_chunks = []
+            for it in kb_entries:
+                if isinstance(it, dict):
+                    name = (it.get('name') or '').strip()
+                    content = (it.get('content') or '').strip()
+                    if content:
+                        kb_text_chunks.append(f"[Source: {name}]\n{content}")
+            kb_text = "\n\n".join(kb_text_chunks)[:20000]  # cap to ~20k chars to keep token usage reasonable
+
+            # Re-run buttons for Pass-2 and Pass-3 operating on the currently edited fields
+            cols = st.columns(2)
+            with cols[0]:
+                rerun_p2 = st.button("Re-run Pass 2: Enrich Context (uses Knowledgebase)")
+            with cols[1]:
+                rerun_p3 = st.button("Re-run Pass 3: Generate Rubrics")
+
+            # Helper to fetch current edited values from the text areas (if present),
+            # otherwise fall back to stored quiz data.
+            def _current_value(key: str, default: str):
+                return st.session_state.get(key, default)
+
+            # Re-run Pass 2: update contexts in-place using KB + existing context
+            if rerun_p2:
+                import quiz_extractor  # reuse prompts and cleaner
+                llm = quiz_extractor.get_llm()
+                progress = st.progress(0.0, text="Enriching contexts...")
+                updated = 0
+                for idx, q in enumerate(quiz_data, start=1):
+                    qid = q.get('id', idx)
+                    q_key = f"edit_q_{qid}_question"
+                    c_key = f"edit_q_{qid}_context"
+                    question_txt = _current_value(q_key, q.get('question', ''))
+                    context_txt  = _current_value(c_key, q.get('context', ''))
+                    try:
+                        enrich_prompt = quiz_extractor.ENRICH_PROMPT.format(
+                            pdf_text=(kb_text or ""),
+                            question=question_txt,
+                            context=context_txt,
+                        )
+                        enriched_context = llm.invoke(
+                            [
+                                {"role": "system", "content": "Return ONLY the enriched context as plain text. Do not add any preamble or conclusion. Do NOT include any answer."},
+                                {"role": "user", "content": enrich_prompt},
+                            ],
+                            temperature=0.2,
+                        ).content
+                        cleaned = quiz_extractor.clean_enriched_context(enriched_context)
+                        # If enrichment is too short, append a few KB lines heuristically
+                        if len(cleaned) < 40 and kb_text:
+                            kb_lines = [ln for ln in kb_text.splitlines() if ln.strip()][:8]
+                            cleaned = (cleaned + "\n" + "\n".join(kb_lines)).strip()
+                        # Update text area value via session_state, then the UI will reflect after rerun
+                        st.session_state[c_key] = cleaned
+                        updated += 1
+                    except Exception as e:
+                        st.warning(f"⚠️ Pass-2 failed for Q{qid}: {e}")
+                    progress.progress(updated / max(1, len(quiz_data)))
+                progress.empty()
+                st.success("Pass 2 complete: Context enriched using knowledgebase.")
+                safe_rerun()
+
+            # Re-run Pass 3: generate new rubrics from current question+context
+            if rerun_p3:
+                import quiz_extractor
+                llm = quiz_extractor.get_llm()
+                progress = st.progress(0.0, text="Generating rubrics...")
+                updated = 0
+                for idx, q in enumerate(quiz_data, start=1):
+                    qid = q.get('id', idx)
+                    q_key = f"edit_q_{qid}_question"
+                    c_key = f"edit_q_{qid}_context"
+                    r_key = f"edit_q_{qid}_rubric"
+                    question_txt = _current_value(q_key, q.get('question', ''))
+                    context_txt  = _current_value(c_key, q.get('context', ''))
+                    try:
+                        rubric_prompt = quiz_extractor.RUBRIC_PROMPT.format(
+                            question=question_txt,
+                            context=context_txt,
+                        )
+                        rubric = llm.invoke(
+                            [
+                                {"role": "system", "content": "Return the marking rubric as plain text."},
+                                {"role": "user", "content": rubric_prompt},
+                            ]
+                        ).content
+                        st.session_state[r_key] = rubric.strip()
+                        updated += 1
+                    except Exception as e:
+                        st.warning(f"⚠️ Pass-3 failed for Q{qid}: {e}")
+                    progress.progress(updated / max(1, len(quiz_data)))
+                progress.empty()
+                st.success("Pass 3 complete: Rubrics regenerated.")
+                safe_rerun()
+
+            # Render questions with a live-updating preview above the edit fields
             questions = quiz_data
             edited_questions = []
             for q in questions:
-                with st.expander(f"Question {q.get('id', '')}: {q.get('question', '')}"):
-                    st.markdown(format_quiz_context(q), unsafe_allow_html=True)
-                    new_question = st.text_area("Question", value=q.get('question', ''), key=f"edit_q_{q.get('id','')}_question")
-                    new_context = st.text_area("Context", value=q.get('context', ''), key=f"edit_q_{q.get('id','')}_context", height=150)
-                    new_rubric = st.text_area("Rubric", value=q.get('answer', ''), key=f"edit_q_{q.get('id','')}_rubric", height=200)
+                qid = q.get('id', '')
+                with st.expander(f"Question {qid}: {q.get('question', '')}"):
+                    # Build a preview based on current (possibly edited) values
+                    preview = st.empty()
+                    q_key = f"edit_q_{qid}_question"
+                    c_key = f"edit_q_{qid}_context"
+                    r_key = f"edit_q_{qid}_rubric"
+                    # Editable fields
+                    new_question = st.text_area("Question", value=_current_value(q_key, q.get('question', '')), key=q_key)
+                    new_context  = st.text_area("Context", value=_current_value(c_key, q.get('context', '')), key=c_key, height=150)
+                    new_rubric   = st.text_area("Rubric", value=_current_value(r_key, q.get('answer', '')), key=r_key, height=200)
+                    # Update preview above fields using the live values
+                    preview_data = {"id": qid, "question": new_question, "context": new_context}
+                    preview.markdown(format_quiz_context(preview_data), unsafe_allow_html=True)
                     edited_questions.append({
-                        "id": q.get('id',''),
+                        "id": qid,
                         "question": new_question,
                         "context": new_context,
-                        "answer": new_rubric
+                        "answer": new_rubric,
                     })
             if st.button("Save All Changes"):
                 save_quiz_to_firestore(subject, week, edited_questions)
