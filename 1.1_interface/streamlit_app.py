@@ -481,10 +481,21 @@ if st.session_state.page == 'teacher':
                     q_key = f"edit_q_{qid}_question"
                     c_key = f"edit_q_{qid}_context"
                     r_key = f"edit_q_{qid}_rubric"
-                    # Editable fields
-                    new_question = st.text_area("Question", value=_current_value(q_key, q.get('question', '')), key=q_key)
-                    new_context  = st.text_area("Context", value=_current_value(c_key, q.get('context', '')), key=c_key, height=150)
-                    new_rubric   = st.text_area("Rubric", value=_current_value(r_key, q.get('answer', '')), key=r_key, height=200)
+                    # Editable fields – avoid setting both default and session_state value for same key
+                    if q_key in st.session_state:
+                        new_question = st.text_area("Question", key=q_key)
+                    else:
+                        new_question = st.text_area("Question", value=q.get('question', ''), key=q_key)
+
+                    if c_key in st.session_state:
+                        new_context = st.text_area("Context", key=c_key, height=150)
+                    else:
+                        new_context = st.text_area("Context", value=q.get('context', ''), key=c_key, height=150)
+
+                    if r_key in st.session_state:
+                        new_rubric = st.text_area("Rubric", key=r_key, height=200)
+                    else:
+                        new_rubric = st.text_area("Rubric", value=q.get('answer', ''), key=r_key, height=200)
                     # Update preview above fields using the live values
                     preview_data = {"id": qid, "question": new_question, "context": new_context}
                     preview.markdown(format_quiz_context(preview_data), unsafe_allow_html=True)
