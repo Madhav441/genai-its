@@ -302,7 +302,84 @@ def clean_enriched_context(text: str) -> str:
     text = re.sub(r"\n*This is question.*", "", text, flags=re.I)
     # Remove 'The variables are:' etc. if not code
     text = re.sub(r"^The variables (are|used are):.*?\n+", "", text, flags=re.I)
+    text = _tidy_context_markdown(text)
     return text.strip()
+
+
+def _tidy_context_markdown(text: str) -> str:
+    """Normalize whitespace, split inline statements, and wrap code blocks."""
+    text = text.replace("\r\n", "\n").replace("\t", "    ")
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    # Break inline Python statements that often appear on one line after extraction
+    text = re.sub(
+        r"(?P<header>class\s+[A-Za-z_][\w]*(?:\([^\)]*\))?\s*:)\s*(?=def\s+)",
+        lambda m: f"{m.group('header')}\n",
+        text,
+    )
+    text = re.sub(r"(:|\))\s+(def\s+)", r"\1\n\2", text)
+    text = re.sub(r"(\bself\.[^\n]+?)\s+(def\s+)", r"\1\n\2", text)
+    text = re.sub(r"(;\s*)(def\s+)", r"\1\n\2", text)
+
+    # Normalise numbered steps and bullets
+    text = re.sub(r"^\s*(\d+)\)\s*", r"\1. ", text, flags=re.M)
+    text = re.sub(r"^\s*[•‣]\s*", "- ", text, flags=re.M)
+
+    # Wrap contiguous code-like lines in fenced code blocks if not already fenced
+    text = _wrap_python_code_blocks(text)
+
+    return text
+
+
+def _wrap_python_code_blocks(text: str) -> str:
+    lines = text.splitlines()
+    result: list[str] = []
+    in_code = False
+    manual_fence = False
+
+    def looks_like_code(line: str) -> bool:
+        stripped = line.lstrip()
+        if not stripped:
+            return False
+        if stripped.startswith(("```", "~~~")):
+            return False
+        code_starts = (
+            "class ", "def ", "for ", "while ", "if ", "elif ", "else:",
+            "try:", "except ", "with ", "return ", "import ", "from ",
+        )
+        return stripped.startswith(code_starts) or stripped.startswith("#") or line.startswith("    ")
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            if in_code and manual_fence:
+                result.append("```")
+                in_code = False
+                manual_fence = False
+            else:
+                in_code = True
+            result.append(line)
+            continue
+
+        is_code_line = looks_like_code(line)
+
+        if is_code_line and not in_code:
+            result.append("```python")
+            in_code = True
+            manual_fence = True
+        if not is_code_line and in_code and manual_fence:
+            result.append("```")
+            in_code = False
+            manual_fence = False
+
+        result.append(line)
+
+    if in_code and manual_fence:
+        result.append("```")
+
+    return "\n".join(result)
 
 
 def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
