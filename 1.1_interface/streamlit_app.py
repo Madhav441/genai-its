@@ -36,6 +36,21 @@ from document_loader import load_and_embed_pdf
 from quiz_extractor import extract_questions_from_pdf
 from quiz_agent import QuizAgent
 
+# ── Research tracking modules ─────────────────────────────────────────
+try:
+    from survey_tracker import (
+        generate_participant_id, record_survey, has_completed_survey,
+    )
+    _SURVEY_TRACKING = True
+except ImportError:
+    _SURVEY_TRACKING = False
+
+try:
+    from response_tracker import export_events_csv, export_surveys_csv
+    _ANALYTICS_EXPORT = True
+except ImportError:
+    _ANALYTICS_EXPORT = False
+
 # Compatibility helper: some Streamlit versions expose experimental_rerun, others only have rerun
 def safe_rerun():
     try:
@@ -725,9 +740,24 @@ elif st.session_state.page == 'student_pre_survey':
     confirm = st.checkbox("I confirm I have completed the survey", key="pre_survey_confirm")
     if st.button("I have completed the survey", disabled=not confirm):
         if 'student_id' in st.session_state:
-            survey_doc_id = f"{st.session_state['student_id']}_pre_survey"
+            sid = st.session_state['student_id']
+            survey_doc_id = f"{sid}_pre_survey"
             survey_ref = db.collection("student_surveys").document(survey_doc_id)
-            survey_ref.set({"student_id": st.session_state['student_id'], "done": True})
+            survey_ref.set({"student_id": sid, "done": True})
+            # ── Codified survey tracking ──────────────────────────
+            if _SURVEY_TRACKING:
+                salt = os.getenv("PARTICIPANT_ID_SALT", "genai-its-2025")
+                pid = generate_participant_id(sid, salt)
+                st.session_state["participant_id"] = pid
+                subj = st.session_state.get("student_subject", "")
+                record_survey(
+                    participant_id=pid,
+                    student_id=sid,
+                    subject=subj,
+                    phase="pre",
+                    responses={"survey_completed": True},
+                    metadata={"source": "streamlit_iframe"},
+                )
         st.session_state.page = 'student_quiz'
         set_query_params()
         st.rerun()
@@ -884,9 +914,23 @@ elif st.session_state.page == 'student_post_survey':
         post_confirm = st.checkbox("I confirm I have completed the post-quiz survey", key="post_survey_confirm")
         if st.button("I have completed the post-quiz survey", disabled=not post_confirm):
             if 'student_id' in st.session_state:
-                post_survey_doc_id = f"{st.session_state['student_id']}_post_survey"
+                sid = st.session_state['student_id']
+                post_survey_doc_id = f"{sid}_post_survey"
                 post_survey_ref = db.collection("student_surveys").document(post_survey_doc_id)
-                post_survey_ref.set({"student_id": st.session_state['student_id'], "done": True})
+                post_survey_ref.set({"student_id": sid, "done": True})
+                # ── Codified survey tracking ──────────────────────────
+                if _SURVEY_TRACKING:
+                    salt = os.getenv("PARTICIPANT_ID_SALT", "genai-its-2025")
+                    pid = generate_participant_id(sid, salt)
+                    subj = st.session_state.get("student_subject", "")
+                    record_survey(
+                        participant_id=pid,
+                        student_id=sid,
+                        subject=subj,
+                        phase="post",
+                        responses={"survey_completed": True},
+                        metadata={"source": "streamlit_iframe"},
+                    )
             st.session_state.page = 'main'
             set_query_params()
             st.rerun()

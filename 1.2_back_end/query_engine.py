@@ -10,11 +10,11 @@ Requirements:
 from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 
-from groq_llm import get_groq_llm
+from llm_provider import get_llm
 from document_loader import LocalHuggingFaceEmbeddings
 
 
-def run_agent_query(query: str, model: str = "llama3-70b-8192") -> str:
+def run_agent_query(query: str, model: str = "llama-3.3-70b-versatile") -> str:
     # --- open the vector‑store -------------------------------------------------
     embeddings = LocalHuggingFaceEmbeddings()
     vectordb = FAISS.load_local(
@@ -25,9 +25,9 @@ def run_agent_query(query: str, model: str = "llama3-70b-8192") -> str:
 
     retriever = vectordb.as_retriever(search_type="similarity", k=3)
 
-    # --- Groq LLM --------------------------------------------------------------
+    # --- Groq LLM via unified provider ----------------------------------------
     qa_chain = RetrievalQA.from_chain_type(
-        llm=get_groq_llm(model=model),   # ← Groq everywhere
+        llm=get_llm(model_name=model),
         chain_type="stuff",
         retriever=retriever,
     )
