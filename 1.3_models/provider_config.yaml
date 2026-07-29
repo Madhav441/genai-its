@@ -1,0 +1,27 @@
+# DP5: Configuration-driven model routing
+# Change active_provider to switch models without editing Python code.
+
+active_provider: ollama
+allow_fallback: true
+fallback_provider: ollama
+
+providers:
+  ollama:
+    enabled: true
+    model_name: llama3.2
+    base_url: http://localhost:11434
+    temperature: 0.1
+
+  groq:
+    enabled: true
+    model_name: llama-3.3-70b-versatile
+    api_key_env: GROQ_API_KEY
+    temperature: 0.1
+    max_tokens: 1024
+
+  openai:
+    enabled: true
+    model_name: gpt-5-mini
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.1
+    max_tokens: 1024

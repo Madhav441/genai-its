@@ -72,7 +72,7 @@ logging.basicConfig(level=logging.INFO)
 
 LLM = get_llm(model=os.getenv("CLASSIFIER_MODEL",
                                    "llama3-8b-8192"))
-+# 2025-05-10  update – allow richer labels so we keep useful chunks
+# 2025-05-10  update – allow richer labels so we keep useful chunks
 _VALID: set[str] = {
     "question",          # learner must answer
     "context",           # general instructional text
