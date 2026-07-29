@@ -126,3 +126,44 @@ Automated tests are located in:
 Run the tests with:
 
 python3 -m pytest tests/test_audit_logger.py
+
+## Sprint 3 Progress
+
+The audit logger now supports optional Firestore storage using the `audit_logs` collection.
+
+Each event is first written to the local JSONL audit file. The same sanitised event is then written to Firestore when the database connection is enabled. If Firestore is unavailable, the local audit record remains available as a fallback.
+
+A controlled `contract_violation` event was successfully written to the live Firestore database. The event represented a prompt-injection attempt and included information such as the event type, severity, source module and guardrail result. The original prompt was replaced with `[REDACTED]` before storage.
+
+### Testing Status
+
+* 7 core audit logger tests passed.
+* 5 mocked Firestore integration tests passed.
+* 12 tests passed in total.
+* Live Firestore writing was verified manually.
+* Local fallback behaviour was tested.
+
+### Red-Team Testing Preparation
+
+A red-team testing plan has been prepared for the following scenarios:
+
+* Prompt injection
+* System-prompt extraction
+* Answer-key extraction
+* Rubric leakage
+* Role bypass
+* Rate-limit abuse
+* Malicious file instructions
+* Unsafe cybersecurity requests
+
+Each scenario has been mapped to an expected system response, audit-event type, severity level and responsible module.
+
+### Current Limitation
+
+The controlled prompt-injection event demonstrates that the audit logging and Firestore storage pipeline works.
+
+It does not yet represent a complete end-to-end attack passing through the real CyberNexa AI Gate. Full testing requires the AI Gate, rate limiter, file validator, output guardrails and access-control components to be combined into one shared integration branch.
+
+### Next Step
+
+Once a shared integration branch is confirmed, the red-team scenarios can be converted into automated Pytest cases that send controlled attacks into the real system and verify that they are blocked, sanitised and logged correctly.
