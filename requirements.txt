@@ -20,3 +20,8 @@ PyDrive2
 google-cloud-firestore
 firebase-admin
 # Add any other dependencies below as needed
+
+langchain-openai
+langchain-groq
+langchain-ollama
+ollama
