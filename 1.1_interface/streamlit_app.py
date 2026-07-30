@@ -13,7 +13,79 @@ PRE_QUIZ_SURVEY_URL = os.getenv("PRE_QUIZ_SURVEY_URL", "")
 POST_QUIZ_SURVEY_URL = os.getenv("POST_QUIZ_SURVEY_URL", "")
 
 # Set page configuration (must be the first Streamlit command)
-st.set_page_config(page_title="GenAI ITS", layout="wide", initial_sidebar_state="collapsed")
+# CyberNexa page configuration
+st.set_page_config(
+    page_title="CyberNexa",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# ---------- Global CyberNexa Theme ----------
+st.markdown("""
+<style>
+
+/* Background */
+.stApp{
+    background:#081524;
+    color:white;
+}
+
+/* Main container */
+.block-container{
+    max-width:1200px;
+    padding-top:2rem;
+    padding-bottom:2rem;
+}
+
+/* Titles */
+h1,h2,h3{
+    color:white !important;
+}
+
+/* Text */
+p,label{
+    color:#D7E5F7 !important;
+}
+
+/* Buttons */
+.stButton>button{
+    width:100%;
+    height:48px;
+    border-radius:12px;
+    background:#173B68;
+    color:white;
+    border:1px solid #2E5D94;
+    font-weight:600;
+}
+
+.stButton>button:hover{
+    background:#23548F;
+}
+
+/* Metric Cards */
+div[data-testid="stMetric"]{
+    background:#10233F;
+    border:1px solid #355E91;
+    border-radius:12px;
+    padding:18px;
+}
+
+/* Info boxes */
+div[data-testid="stAlert"]{
+    background:#10233F;
+    border-radius:12px;
+}
+
+/* Horizontal line */
+hr{
+    border-color:#2E5D94;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
 
 # Import necessary modules
 import asyncio, sys
@@ -167,60 +239,104 @@ def set_query_params():
     })
 
 if st.session_state.page == 'main':
-    st.markdown("""
-        <style>
-        .centered-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 8vh;
-        }
-        .centered-container .stButton>button {
-            all: unset;
-            display: block;
-            width: 320px;
-            max-width: 90vw;
-            padding: 0;
-            background: linear-gradient(90deg, #67D6FF 0%, #A78BFA 100%);
-            border: none;
-            border-radius: 20px;
-            color: #fff;
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin: 1.1rem 0;
-            box-shadow: 0px 0px 10px rgba(167, 139, 250, 0.18);
-            cursor: pointer;
-            text-align: center;
-            transition: background 0.2s, color 0.2s, opacity 0.2s;
-        }
-        .centered-container .stButton>button:hover {
-            opacity: 0.92;
-            background: linear-gradient(90deg, #A78BFA 0%, #67D6FF 100%);
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="centered-container">', unsafe_allow_html=True)
-    st.markdown("## GenAI ITS Login")
-    btn_teacher = st.button("👩‍🏫 Teacher/Tutor", key="teacher_btn", help="Click to login as Teacher")
-    btn_student = st.button("🧑‍🎓 Student", key="student_btn", help="Click to login as Student")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.sidebar.empty()
+
+    left_space, centre_column, right_space = st.columns([1, 1.4, 1])
+
+    with centre_column:
+        logo_path = os.path.join(
+            os.path.dirname(__file__),
+            "assets",
+            "cybernexa_logo.png"
+        )
+
+        st.image(logo_path, use_container_width=True)
+
+        st.markdown(
+            "<h3 style='text-align: center;'>Secure AI-Powered Learning Platform</h3>",
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            "<p style='text-align: center;'>Choose your role to continue</p>",
+            unsafe_allow_html=True
+        )
+
+        btn_teacher = st.button(
+            "👩‍🏫 Teacher / Tutor Portal",
+            key="teacher_btn",
+            help="Access quiz management and teaching tools",
+            use_container_width=True
+        )
+
+        btn_student = st.button(
+            "🧑‍🎓 Student Portal",
+            key="student_btn",
+            help="Access quizzes and learning activities",
+            use_container_width=True
+        )
+
+        st.caption("🔒 Your learning data is protected")
+
     if btn_teacher:
         st.session_state.page = 'teacher'
         set_query_params()
         st.rerun()
+
     if btn_student:
         st.session_state.page = 'student_login'
         set_query_params()
         st.rerun()
-    st.stop()
 
+    st.stop()
 if st.session_state.page == 'teacher':
     st.sidebar.header("Teacher Options")
+
     if st.button("⬅️ Back to Main Page"):
         st.session_state.page = 'main'
         set_query_params()
         st.rerun()
-    st.title("📘 GenAI Intelligent Tutoring System - Teacher Dashboard")
+
+    # Teacher navigation
+    nav_col1, nav_col2 = st.columns(2)
+
+    with nav_col1:
+        st.button(
+            "🏠 Teacher Hub",
+            key="current_teacher_hub",
+            disabled=True,
+            use_container_width=True
+        )
+
+    with nav_col2:
+        if st.button(
+            "📊 Analytics & Reports",
+            key="teacher_hub_to_analytics",
+            use_container_width=True
+        ):
+            st.session_state.page = "teacher_analytics"
+            set_query_params()
+            st.rerun()
+
+        # CyberNexa Branding
+    logo_path = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "cybernexa_logo.png"
+    )
+
+    st.image(
+        logo_path,
+        width=180
+    )
+
+    st.title("🏠 Teacher Hub")
+
+    st.caption(
+        "Manage quizzes, upload learning resources and monitor student progress."
+    )
+
+    st.markdown("---")
 
     mode = st.radio("Choose an action:", ["Select Existing Quiz", "Upload New Quiz"], horizontal=True)
 
@@ -621,11 +737,138 @@ if st.session_state.page == 'teacher':
                 if st.button("Save Quiz"):
                     save_quiz_to_firestore(new_subject, new_week, edited_questions)
                     st.success(f"Quiz saved to Firestore for {new_subject} / {new_week}. It is now available to students.")
+elif st.session_state.page == 'teacher_analytics':
+    st.sidebar.empty()
+
+    # Teacher navigation
+    nav_col1, nav_col2 = st.columns(2)
+
+    with nav_col1:
+        if st.button(
+            "🏠 Teacher Hub",
+            key="analytics_to_teacher_hub",
+            use_container_width=True
+        ):
+            st.session_state.page = "teacher"
+            set_query_params()
+            st.rerun()
+
+    with nav_col2:
+        st.button(
+            "📊 Analytics & Reports",
+            key="current_teacher_analytics",
+            disabled=True,
+            use_container_width=True
+        )
+
+    # CyberNexa logo
+    logo_path = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "cybernexa_logo.png"
+    )
+
+    st.image(logo_path, width=180)
+
+    st.title("📊 Analytics & Reports")
+
+    st.caption(
+        "Monitor student participation, quiz performance and learning activity."
+    )
+
+    st.markdown("---")
+
+    # Summary metrics
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+
+    with metric_col1:
+        st.metric(
+            label="Total Students",
+            value="0"
+        )
+
+    with metric_col2:
+        st.metric(
+            label="Quiz Attempts",
+            value="0"
+        )
+
+    with metric_col3:
+        st.metric(
+            label="Average Score",
+            value="0%"
+        )
+
+    with metric_col4:
+        st.metric(
+            label="Completion Rate",
+            value="0%"
+        )
+
+    st.markdown("---")
+
+    # Performance section
+    st.subheader("📈 Student Performance Overview")
+
+    st.info(
+        "Student performance charts will appear here when quiz data is available."
+    )
+
+    st.markdown("---")
+
+    # Recent attempts section
+    st.subheader("📋 Recent Quiz Attempts")
+
+    st.info(
+        "No student quiz attempts are available yet."
+    )
+
+    st.markdown("---")
+
+    insight_col, report_col = st.columns(2)
+
+    with insight_col:
+        st.subheader("🤖 Learning Insights")
+
+        st.info(
+            "AI-generated learning insights will appear here after student activity is recorded."
+        )
+
+    with report_col:
+        st.subheader("📄 Reports")
+
+        st.info(
+            "Teacher reports will become available when performance data is connected."
+        )
+
+        st.button(
+            "Generate Report",
+            key="generate_teacher_report",
+            disabled=True,
+            use_container_width=True
+        )
+
+    st.stop()
 elif st.session_state.page == 'student_login':
     st.sidebar.empty()
-    st.title("Student Login")
+
+    if st.button("⬅ Back to Home"):
+        st.session_state.page = 'main'
+        set_query_params()
+        st.rerun()
+
+    logo_path = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "cybernexa_logo.png"
+    )
+
+    st.image(logo_path, width=180)
+
+    st.title("🧑‍🎓 Student Portal")
+    st.caption("Welcome back! Select your Student ID to continue.")
+
     # --- Student ID selection/registration ---
-    # 1. Gather all student IDs from Firestore and local profiles
     firestore_ids = set()
     for doc in db.collection("student_surveys").stream():
         data = doc.to_dict()
@@ -677,27 +920,56 @@ elif st.session_state.page == 'student_login':
 
 elif st.session_state.page == 'student_subject_select':
     st.sidebar.empty()
-    st.title("Select Subject")
+
+    # Back button
+    if st.button("⬅ Back to Student Portal"):
+        st.session_state.page = 'student_login'
+        set_query_params()
+        st.rerun()
+
+    # CyberNexa branding
+    logo_path = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "cybernexa_logo.png"
+    )
+
+    st.image(logo_path, width=180)
+
+    st.title("📚 Choose Your Subject")
+    st.caption("Select the subject you would like to study today.")
+
     # Get all subjects from Firestore
     subjects = []
     for doc in db.collection("finalised_quizzes").stream():
         data = doc.to_dict()
         if data and "subject" in data:
             subjects.append(data["subject"])
+
     subjects = sorted(set(subjects))
-    subject = st.selectbox("Select Subject", subjects, key="student_subject_select")
+
+    subject = st.selectbox(
+        "Select Subject",
+        subjects,
+        key="student_subject_select"
+    )
+
     if st.button("Continue", disabled=not subject):
         st.session_state['student_subject'] = subject
-        # Check if pre-quiz survey is already done for this student (not per subject)
+
+        # Check if pre-quiz survey is already done
         survey_doc_id = f"{st.session_state['student_id']}_pre_survey"
         survey_ref = db.collection("student_surveys").document(survey_doc_id)
         survey_doc = survey_ref.get()
+
         if survey_doc.exists and survey_doc.to_dict().get("done"):
             st.session_state.page = 'student_quiz'
         else:
             st.session_state.page = 'student_pre_survey'
+
         set_query_params()
         st.rerun()
+
     st.stop()
 
 elif st.session_state.page == 'student_pre_survey':
@@ -735,132 +1007,815 @@ elif st.session_state.page == 'student_pre_survey':
 
 elif st.session_state.page == 'student_quiz':
     st.sidebar.empty()
-    if st.button("\u2B05\uFE0F Back to Main Page"):
-        st.session_state.page = 'main'
+
+    # Protect the Student Hub if no student is logged in
+    if 'student_id' not in st.session_state:
+        st.session_state.page = 'student_login'
         set_query_params()
         st.rerun()
-    st.markdown(f"**Logged in as:** `{st.session_state.student_id}`")
-    # Quiz selection (Firestore only)
-    # Get all subjects from Firestore
+
+    # -----------------------------
+    # Student navigation
+    # -----------------------------
+    nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 0.75])
+
+    with nav_col1:
+        st.button(
+            "🏠 Student Hub",
+            key="current_student_hub",
+            disabled=True,
+            use_container_width=True
+        )
+
+    with nav_col2:
+        if st.button(
+            "📈 My Progress",
+            key="student_hub_to_progress",
+            use_container_width=True
+        ):
+            st.session_state.page = 'student_progress'
+            set_query_params()
+            st.rerun()
+
+    with nav_col3:
+        if st.button(
+            "🚪 Log Out",
+            key="student_hub_logout",
+            use_container_width=True
+        ):
+            # Remove student-specific session information
+            student_keys = [
+                "student_id",
+                "student_subject",
+                "student_week",
+                "student_subject_select",
+                "last_displayed_index"
+            ]
+
+            for key in student_keys:
+                if key in st.session_state:
+                    del st.session_state[key]
+
+            st.session_state.page = 'main'
+            set_query_params()
+            st.rerun()
+
+    st.write("")
+
+    # -----------------------------
+    # Student Hub header
+    # -----------------------------
+    with st.container(border=True):
+        header_left, header_right = st.columns([3, 1])
+
+        with header_left:
+            st.markdown(
+                """
+<div style="font-size:13px; font-weight:700; color:#60A5FA; letter-spacing:1.5px; margin-bottom:4px;">
+CYBERNEXA LEARNING SPACE
+</div>
+
+<h1 style="margin-top:0; margin-bottom:8px; color:#FFFFFF;">
+AI Tutor
+</h1>
+
+<p style="color:#AFC7E5; margin-top:0; margin-bottom:4px;">
+Choose a quiz and work through each question with personalised AI guidance.
+</p>
+""",
+                unsafe_allow_html=True
+            )
+
+        with header_right:
+         st.info(
+        f"""
+**Logged in as**
+
+**{st.session_state.student_id}**
+
+🟢 Active student session
+"""
+    )
+
+    st.write("")
+
+    # -----------------------------
+    # Quiz selection heading
+    # -----------------------------
+    st.markdown(
+        """
+<div style="font-size:13px; font-weight:700; color:#60A5FA; letter-spacing:1px; margin-bottom:4px;">
+QUIZ SELECTION
+</div>
+
+<h3 style="color:#FFFFFF; margin-top:0; margin-bottom:4px;">
+Choose your learning activity
+</h3>
+
+<p style="color:#9FB6D4; margin-top:0; margin-bottom:12px;">
+Select a subject and week to begin or continue your quiz.
+</p>
+""",
+        unsafe_allow_html=True
+    )
+
+    # -----------------------------
+    # Get subjects from Firestore
+    # -----------------------------
     subjects = []
+
     for doc in db.collection("finalised_quizzes").stream():
         data = doc.to_dict()
+
         if data and "subject" in data:
             subjects.append(data["subject"])
+
     subjects = sorted(set(subjects))
+
+    if not subjects:
+        st.info(
+            "No quizzes are currently available. Please ask your teacher to upload a quiz."
+        )
+        st.stop()
+
+    # Use the previously selected subject when possible
+    saved_subject = st.session_state.get("student_subject", "")
+
+    if saved_subject not in subjects:
+        saved_subject = subjects[0]
+
+    subject_index = subjects.index(saved_subject)
+
+    selection_col1, selection_col2 = st.columns(2)
+
+    with selection_col1:
+        subject = st.selectbox(
+            "Subject",
+            subjects,
+            index=subject_index,
+            key="student_subject_picker",
+            help="Choose the subject you would like to study."
+        )
+
+    # -----------------------------
+    # Get weeks for selected subject
+    # -----------------------------
     weeks = []
-    if 'student_subject' in st.session_state:
-        subject = st.session_state['student_subject']
-    else:
-        subject = subjects[0] if subjects else ''
+
     if subject:
         for doc in db.collection("finalised_quizzes").stream():
             data = doc.to_dict()
+
             if data and data.get("subject") == subject:
-                weeks.append(data.get("week"))
+                selected_week = data.get("week")
+
+                if selected_week:
+                    weeks.append(selected_week)
+
     weeks = sorted(set(weeks))
-    def on_subject_or_week_change():
-        set_query_params()
-    subject = st.selectbox("Select Subject", subjects, key="student_subject", on_change=on_subject_or_week_change)
-    week = st.selectbox("Select Week", weeks if weeks else [], key="student_week", on_change=on_subject_or_week_change)
-    quiz_data = load_quiz_from_firestore(subject, week) if subject and week else []
-    if subject and week and quiz_data:
-        # Per-student, per-subject, per-week chat history (local, for now)
-        student_profile_dir = os.path.join("data", "student_profiles", st.session_state.student_id)
-        os.makedirs(student_profile_dir, exist_ok=True)
-        chat_history_path = os.path.join(student_profile_dir, f"{subject}_{week}_quiz.json")
+
+    saved_week = st.session_state.get("student_week", "")
+
+    if saved_week in weeks:
+        week_index = weeks.index(saved_week)
+    else:
+        week_index = 0
+
+    with selection_col2:
+        week = st.selectbox(
+            "Week",
+            weeks,
+            index=week_index if weeks else None,
+            key="student_week_picker",
+            help="Choose the quiz week you would like to complete."
+        )
+
+    # Save selected subject and week
+    st.session_state["student_subject"] = subject
+    st.session_state["student_week"] = week if week else ""
+
+    set_query_params()
+
+    quiz_data = (
+        load_quiz_from_firestore(subject, week)
+        if subject and week
+        else []
+    )
+
+    # Prevent user_input from being undefined
+    user_input = None
+
+    # -----------------------------
+    # No quiz message
+    # -----------------------------
+    if not week:
+        st.info(
+            "No quiz weeks are available for the selected subject."
+        )
+
+    elif not quiz_data:
+        st.info(
+            "A quiz has not yet been added for this subject and week."
+        )
+
+    # -----------------------------
+    # Active quiz
+    # -----------------------------
+    else:
+        st.success(
+            f"Quiz ready: {subject} — {week}"
+        )
+
+        # Student profile and chat-history location
+        student_profile_dir = os.path.join(
+            "data",
+            "student_profiles",
+            st.session_state.student_id
+        )
+
+        os.makedirs(
+            student_profile_dir,
+            exist_ok=True
+        )
+
+        safe_subject = str(subject).replace("/", "_")
+        safe_week = str(week).replace("/", "_")
+
+        chat_history_path = os.path.join(
+            student_profile_dir,
+            f"{safe_subject}_{safe_week}_quiz.json"
+        )
+
+        # Load existing chat history safely
+        chat_history = []
+
         if os.path.exists(chat_history_path):
-            with open(chat_history_path, "r", encoding="utf-8") as cf:
-                chat_history = json.load(cf)
-        else:
-            chat_history = []
-        if st.button("Clear chat"):
+            try:
+                with open(
+                    chat_history_path,
+                    "r",
+                    encoding="utf-8"
+                ) as chat_file:
+                    loaded_history = json.load(chat_file)
+
+                    if isinstance(loaded_history, list):
+                        chat_history = loaded_history
+
+            except (json.JSONDecodeError, OSError):
+                chat_history = []
+
+        # -----------------------------
+        # Quiz controls
+        # -----------------------------
+        control_col1, control_col2 = st.columns([1, 3])
+
+        with control_col1:
+            clear_chat = st.button(
+                "🗑️ Restart Quiz",
+                key=f"clear_chat_{subject}_{week}",
+                use_container_width=True,
+                help="Clear this conversation and restart the selected quiz."
+            )
+
+        with control_col2:
+            st.caption(
+                "Restarting clears this quiz conversation and resets its current progress."
+            )
+
+        if clear_chat:
             chat_history = []
             st.session_state.last_displayed_index = 0
-            with open(chat_history_path, "w", encoding="utf-8") as cf:
-                json.dump(chat_history, cf)
-            # Also reset quiz progress in Firestore
-            perf_doc_id = f"{st.session_state.student_id}_{subject}_{week}"
-            perf_ref = db.collection("student_performance").document(perf_doc_id)
-            perf = perf_ref.get().to_dict() if perf_ref.get().exists else None
-            if perf:
-                perf["current_q"] = 0
-                perf["last_score"] = 0.0
-                perf_ref.set(perf)
+
+            with open(
+                chat_history_path,
+                "w",
+                encoding="utf-8"
+            ) as chat_file:
+                json.dump(
+                    chat_history,
+                    chat_file,
+                    ensure_ascii=False,
+                    indent=2
+                )
+
+            # Reset quiz progress in Firestore
+            performance_doc_id = (
+                f"{st.session_state.student_id}_{subject}_{week}"
+            )
+
+            performance_ref = db.collection(
+                "student_performance"
+            ).document(
+                performance_doc_id
+            )
+
+            performance_doc = performance_ref.get()
+
+            if performance_doc.exists:
+                performance_data = performance_doc.to_dict() or {}
+
+                performance_data["current_q"] = 0
+                performance_data["last_score"] = 0.0
+
+                performance_ref.set(
+                    performance_data
+                )
+
             st.rerun()
-        st.markdown("---")
-        # Only initialize with instructions/first question if chat_history is empty
+
+        st.markdown(
+    """
+<div style="
+    background:#10233F;
+    border:1px solid #2E5D94;
+    border-radius:12px;
+    padding:18px;
+    margin-top:20px;
+    margin-bottom:20px;
+">
+
+<h3 style="margin-top:0; color:white;">
+🤖 AI Tutor Conversation
+</h3>
+
+<p style="color:#D7E5F7;">
+Answer each question in your own words. CyberNexa will provide feedback and guide you through the quiz step by step.
+</p>
+
+</div>
+""",
+    unsafe_allow_html=True
+)
+
+        st.markdown(
+            """
+<div style="font-size:13px; font-weight:700; color:#60A5FA; letter-spacing:1px; margin-bottom:4px;">
+AI TUTOR CONVERSATION
+</div>
+
+<h3 style="color:#FFFFFF; margin-top:0; margin-bottom:4px;">
+Work through your quiz
+</h3>
+
+<p style="color:#9FB6D4; margin-top:0; margin-bottom:14px;">
+Type your answer below. The AI tutor will provide feedback and guide you to the next question.
+</p>
+""",
+            unsafe_allow_html=True
+        )
+
+        # -----------------------------
+        # Start quiz when history is empty
+        # -----------------------------
         if not chat_history:
             try:
                 from quiz_agent import QuizAgent
+
             except ImportError:
                 import importlib
-                quiz_agent = importlib.import_module("quiz_agent")
-                QuizAgent = quiz_agent.QuizAgent
-            agent = QuizAgent(quiz_data, subject, week, st.session_state.student_id, {})
+
+                quiz_agent_module = importlib.import_module(
+                    "quiz_agent"
+                )
+
+                QuizAgent = quiz_agent_module.QuizAgent
+
+            agent = QuizAgent(
+                quiz_data,
+                subject,
+                week,
+                st.session_state.student_id,
+                {}
+            )
+
             rules = agent.get_instructions()
-            first_q = agent.present_question(quiz_data[0])
-            chat_history.append({"role": "assistant", "content": rules + "\n\n" + first_q})
-            with open(chat_history_path, "w", encoding="utf-8") as cf:
-                json.dump(chat_history, cf)
+            first_question = agent.present_question(
+                quiz_data[0]
+            )
+
+            chat_history.append(
+                {
+                    "role": "assistant",
+                    "content": rules + "\n\n" + first_question
+                }
+            )
+
+            with open(
+                chat_history_path,
+                "w",
+                encoding="utf-8"
+            ) as chat_file:
+                json.dump(
+                    chat_history,
+                    chat_file,
+                    ensure_ascii=False,
+                    indent=2
+                )
+
             st.session_state.last_displayed_index = 0
-        # Always display all previous chat history statically (no streaming)
-        if 'last_displayed_index' not in st.session_state or st.session_state.last_displayed_index > len(chat_history):
-            st.session_state.last_displayed_index = len(chat_history)
-        chat_container = st.container()
+
+        # -----------------------------
+        # Display conversation
+        # -----------------------------
+        if (
+            "last_displayed_index" not in st.session_state
+            or st.session_state.last_displayed_index > len(chat_history)
+        ):
+            st.session_state.last_displayed_index = len(
+                chat_history
+            )
+
+        chat_container = st.container(border=True)
+
         with chat_container:
-            for i, msg in enumerate(chat_history):
-                if msg['role'] == 'user':
-                    st.chat_message("user").markdown(f"**User:** {msg['content']}")
+            for message in chat_history:
+                role = message.get(
+                    "role",
+                    "assistant"
+                )
+
+                content = message.get(
+                    "content",
+                    ""
+                )
+
+                if role == "user":
+                    with st.chat_message(
+                        "user"
+                    ):
+                        st.markdown(content)
+
                 else:
-                    st.chat_message("assistant").markdown(f"**Assistant:** {msg['content']}")
-            st.write("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
-        # Only show chat input at the bottom
-        user_input = st.chat_input("Type your answer and press Enter...")
+                    with st.chat_message(
+                        "assistant"
+                    ):
+                        st.markdown(content)
+
+        # -----------------------------
+        # Student answer input
+        # -----------------------------
+        user_input = st.chat_input(
+            "Type your answer and press Enter..."
+        )
+
         if user_input:
-            chat_history.append({"role": "user", "content": user_input})
-            try:
-                from quiz_agent import QuizAgent
-            except ImportError:
-                import importlib
-                quiz_agent = importlib.import_module("quiz_agent")
-                QuizAgent = quiz_agent.QuizAgent
-            agent = QuizAgent(quiz_data, subject, week, st.session_state.student_id, {})
-            response, end_quiz = agent.handle_input(user_input, chat_history)
-            # If the response signals Qualtrics 2, go to post-survey page
-            if end_quiz == "qualtrics2":
-                chat_history.append({"role": "assistant", "content": response})
-                with open(chat_history_path, "w", encoding="utf-8") as cf:
-                    json.dump(chat_history, cf)
-                st.session_state.last_displayed_index = len(chat_history)
-                st.session_state.page = 'student_post_survey'
+            # Allow student to leave using the word quit
+            if user_input.strip().lower() == "quit":
+                st.session_state.page = "main"
                 set_query_params()
                 st.rerun()
-            # If the response contains both feedback and a new question, split and append both
-            if ("**Question" in response) and ("Context & Instructions" in response):
-                # Try to split at the start of the next question
-                parts = response.split("**Question", 1)
-                feedback = parts[0].strip()
-                question = "**Question" + parts[1].strip()
+
+            chat_history.append(
+                {
+                    "role": "user",
+                    "content": user_input
+                }
+            )
+
+            try:
+                from quiz_agent import QuizAgent
+
+            except ImportError:
+                import importlib
+
+                quiz_agent_module = importlib.import_module(
+                    "quiz_agent"
+                )
+
+                QuizAgent = quiz_agent_module.QuizAgent
+
+            agent = QuizAgent(
+                quiz_data,
+                subject,
+                week,
+                st.session_state.student_id,
+                {}
+            )
+
+            with st.spinner(
+                "CyberNexa is reviewing your answer..."
+            ):
+                response, end_quiz = agent.handle_input(
+                    user_input,
+                    chat_history
+                )
+
+            # Move to post-quiz survey when the quiz finishes
+            if end_quiz == "qualtrics2":
+                chat_history.append(
+                    {
+                        "role": "assistant",
+                        "content": response
+                    }
+                )
+
+                with open(
+                    chat_history_path,
+                    "w",
+                    encoding="utf-8"
+                ) as chat_file:
+                    json.dump(
+                        chat_history,
+                        chat_file,
+                        ensure_ascii=False,
+                        indent=2
+                    )
+
+                st.session_state.last_displayed_index = len(
+                    chat_history
+                )
+
+                st.session_state.page = (
+                    "student_post_survey"
+                )
+
+                set_query_params()
+                st.rerun()
+
+            # Split feedback and the next question when both
+            # are contained in the same AI response
+            if (
+                "**Question" in response
+                and "Context & Instructions" in response
+            ):
+                response_parts = response.split(
+                    "**Question",
+                    1
+                )
+
+                feedback = response_parts[0].strip()
+                next_question = (
+                    "**Question"
+                    + response_parts[1].strip()
+                )
+
                 if feedback:
-                    chat_history.append({"role": "assistant", "content": feedback})
-                if question:
-                    chat_history.append({"role": "assistant", "content": question})
+                    chat_history.append(
+                        {
+                            "role": "assistant",
+                            "content": feedback
+                        }
+                    )
+
+                if next_question:
+                    chat_history.append(
+                        {
+                            "role": "assistant",
+                            "content": next_question
+                        }
+                    )
+
             else:
-                chat_history.append({"role": "assistant", "content": response})
-            with open(chat_history_path, "w", encoding="utf-8") as cf:
-                json.dump(chat_history, cf)
-            st.session_state.last_displayed_index = len(chat_history)
+                chat_history.append(
+                    {
+                        "role": "assistant",
+                        "content": response
+                    }
+                )
+
+            # Save updated conversation
+            with open(
+                chat_history_path,
+                "w",
+                encoding="utf-8"
+            ) as chat_file:
+                json.dump(
+                    chat_history,
+                    chat_file,
+                    ensure_ascii=False,
+                    indent=2
+                )
+
+            st.session_state.last_displayed_index = len(
+                chat_history
+            )
+
             st.rerun()
 
-    # If user types 'quit', return to main page or skip post-quiz survey if already done
-    if user_input and user_input.strip().lower() == 'quit':
-        st.session_state.page = 'main'
+    set_query_params() # Update query params after any changes
+elif st.session_state.page == 'student_progress':
+    st.sidebar.empty()
+
+    # Protect the page if no student is logged in
+    if 'student_id' not in st.session_state:
+        st.session_state.page = 'student_login'
         set_query_params()
         st.rerun()
 
-    set_query_params()  # Update query params after any changes
+    # Student navigation
+    nav_col1, nav_col2, nav_col3 = st.columns(3)
 
+    with nav_col1:
+        if st.button(
+            "🏠 Student Hub",
+            use_container_width=True
+        ):
+            st.session_state.page = 'student_quiz'
+            set_query_params()
+            st.rerun()
+
+    with nav_col2:
+        st.button(
+            "📈 My Progress",
+            disabled=True,
+            use_container_width=True
+        )
+
+    with nav_col3:
+        if st.button(
+            "🚪 Log Out",
+            use_container_width=True
+        ):
+            st.session_state.pop("student_id", None)
+            st.session_state.pop("student_subject", None)
+            st.session_state.pop("student_week", None)
+            st.session_state.page = "main"
+            set_query_params()
+            st.rerun()
+
+    # Page header
+    header_left, header_right = st.columns([3, 1])
+
+    with header_left:
+        st.markdown(
+            """
+<div style="font-size:13px; font-weight:700; color:#60A5FA;
+letter-spacing:1.5px; margin-bottom:4px;">
+CYBERNEXA LEARNING SPACE
+</div>
+
+<h1 style="margin-top:0; margin-bottom:8px; color:#FFFFFF;">
+📈 My Progress
+</h1>
+
+<p style="color:#AFC7E5; margin-top:0;">
+Track your quiz performance, learning activity and improvement over time.
+</p>
+""",
+            unsafe_allow_html=True
+        )
+
+    with header_right:
+        st.info(
+            f"""
+**Student ID**
+
+**{st.session_state.student_id}**
+
+🟢 Active session
+"""
+        )
+
+    st.write("")
+
+    # Learning summary
+    st.markdown(
+        """
+<div style="
+    background:#10233F;
+    border:1px solid #2E5D94;
+    border-radius:12px;
+    padding:18px;
+    margin-bottom:18px;
+">
+<h3 style="margin:0; color:#FFFFFF;">Learning Summary</h3>
+<p style="color:#AFC7E5; margin-bottom:0;">
+A quick overview of your current learning activity.
+</p>
+</div>
+""",
+        unsafe_allow_html=True
+    )
+
+    summary_col1, summary_col2, summary_col3 = st.columns(3)
+
+    with summary_col1:
+        st.metric(
+            label="Quizzes Completed",
+            value="0",
+            help="Total number of completed quiz attempts."
+        )
+
+    with summary_col2:
+        st.metric(
+            label="Average Score",
+            value="0%",
+            help="Your average score across completed quizzes."
+        )
+
+    with summary_col3:
+        st.metric(
+            label="Improvement Rate",
+            value="0%",
+            help="Your performance improvement between attempts."
+        )
+
+    st.write("")
+
+    # Performance chart section
+    st.markdown(
+        """
+<div style="
+    background:#10233F;
+    border:1px solid #2E5D94;
+    border-radius:12px;
+    padding:18px;
+    margin-top:10px;
+    margin-bottom:12px;
+">
+<h3 style="margin:0; color:#FFFFFF;">
+📊 Quiz Performance Over Time
+</h3>
+<p style="color:#AFC7E5; margin-bottom:0;">
+Your quiz results and performance trends will be shown here.
+</p>
+</div>
+""",
+        unsafe_allow_html=True
+    )
+
+    st.info(
+        "Complete a quiz to begin building your performance chart."
+    )
+
+    st.write("")
+
+    # Attempt history section
+    st.markdown(
+        """
+<div style="
+    background:#10233F;
+    border:1px solid #2E5D94;
+    border-radius:12px;
+    padding:18px;
+    margin-top:10px;
+    margin-bottom:12px;
+">
+<h3 style="margin:0; color:#FFFFFF;">
+📋 Attempt History
+</h3>
+<p style="color:#AFC7E5; margin-bottom:0;">
+Review your completed quizzes, scores and recent activity.
+</p>
+</div>
+""",
+        unsafe_allow_html=True
+    )
+
+    st.info(
+        "No quiz attempts are available yet."
+    )
+
+    st.write("")
+
+    # Feedback and reminder section
+    feedback_col, reminder_col = st.columns(2)
+
+    with feedback_col:
+        st.markdown(
+            """
+<div style="
+    background:#10233F;
+    border:1px solid #2E5D94;
+    border-radius:12px;
+    padding:18px;
+    min-height:155px;
+">
+<h3 style="margin-top:0; color:#FFFFFF;">
+🤖 AI Tutor Feedback
+</h3>
+
+<p style="color:#AFC7E5;">
+Personalised strengths, improvement areas and learning advice will appear here after quiz completion.
+</p>
+</div>
+""",
+            unsafe_allow_html=True
+        )
+
+    with reminder_col:
+        st.markdown(
+            """
+<div style="
+    background:#10233F;
+    border:1px solid #2E5D94;
+    border-radius:12px;
+    padding:18px;
+    min-height:155px;
+">
+<h3 style="margin-top:0; color:#FFFFFF;">
+🔔 Learning Reminder
+</h3>
+
+<p style="color:#AFC7E5;">
+Continue practising regularly to build confidence and improve your quiz performance.
+</p>
+</div>
+""",
+            unsafe_allow_html=True
+        )
+
+    st.stop()
 elif st.session_state.page == 'student_post_survey':
     st.sidebar.empty()
     st.title("Post-Quiz Survey")
