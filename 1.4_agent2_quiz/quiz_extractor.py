@@ -14,6 +14,7 @@ Returned list item:
 """
 
 from __future__ import annotations
+from pathlib import Path
 from typing import List, Dict
 import os, json, re, textwrap, shutil, warnings, copy
 import streamlit as st
@@ -41,12 +42,12 @@ Context: <minimal context>
 Separate each question block with a blank line and do not output any extra text.
 """
 
-# When the PDF has instructions/exercises but no explicit questions, synthesize clear questions.
+# When the source has instructions/exercises but no explicit questions, synthesize clear questions.
 FALLBACK_SYNTH_PROMPT = """\
 You are an expert teaching assistant.
 
 TASK:
-1. If the PDF contains instructions, exercises, or teaching material without explicit question labels, synthesize 5–10 clear, self-contained quiz questions.
+1. If the source contains instructions, exercises, or teaching material without explicit question labels, synthesize 5–10 clear, self-contained quiz questions.
 2. For each question, also provide the minimal context a student needs to answer (but NOT the answer).
 3. Use exactly this plain-text format with a blank line between blocks:
 
@@ -91,12 +92,12 @@ ENRICH_PROMPT = textwrap.dedent("""
       • Experienced university tutor & assessment designer
 
     TASK:
-      Review the CURRENT CONTEXT and the FULL PDF TEXT below in relation to the QUESTION.
+    Review the CURRENT CONTEXT and the FULL SOURCE TEXT below in relation to the QUESTION.
       • Only include code snippets that are necessary for understanding the question, such as function signatures, input/output format, or code templates that help the student get started.
       • Do NOT include full example solutions, worked code, or step-by-step answers unless the question explicitly asks for it.
-      • If the PDF or context contains any sample output, expected output, or example results, ALWAYS extract and include them in the context, clearly labeled as "Sample Output:" or "Expected Output:" (use section headings).
+    • If the source or context contains any sample output, expected output, or example results, ALWAYS extract and include them in the context, clearly labeled as "Sample Output:" or "Expected Output:" (use section headings).
       • Do NOT just summarize or restate the question—always include all code, variables, and all sample/expected output needed to answer, but avoid giving away the solution.
-      • If details are missing but can be found in the FULL PDF TEXT, append those details.
+    • If details are missing but can be found in the FULL SOURCE TEXT, append those details.
       • Otherwise, return the CURRENT CONTEXT verbatim.
       • Format the output for a student: use clear section headings (e.g., "Instructions:", "Useful Functions:", "Sample Output:", "Expected Output:"), bullet points for steps, and triple backticks for code or output blocks.
       • Do NOT output or restate the answer itself, only the information needed to answer.
@@ -105,7 +106,7 @@ ENRICH_PROMPT = textwrap.dedent("""
     CURRENT CONTEXT:
     «{context}»
 
-    FULL PDF TEXT (truncated):
+    FULL SOURCE TEXT (truncated):
     {pdf_text}
 
     QUESTION:
@@ -174,6 +175,11 @@ RUBRIC_PROMPT = textwrap.dedent("""\
 # ── Helpers ────────────────────────────────────────────────────────────
 _MD_FENCE = re.compile(r"```.*?```", re.S)
 _JSON_RE  = re.compile(r"(\[.*?\]|\{.*?\})", re.S)
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
+_TEXT_EXTENSIONS = {
+    ".txt", ".md", ".py", ".js", ".ts", ".java", ".c", ".cpp", ".cs",
+    ".html", ".css", ".json", ".yaml", ".yml", ".sh", ".bat", ".ps1", ".sql",
+}
 
 
 def _pdf_to_text(path: str) -> str:
@@ -200,6 +206,53 @@ def _pdf_to_text(path: str) -> str:
     # ASCII-clean + truncate
     embedded_txt = re.sub(r"[^\x00-\x7F]+", " ", embedded_txt)
     return embedded_txt[:MAX_CHARS]
+
+
+def _image_to_text(path: str) -> str:
+    """Return OCR text from an image upload."""
+    try:
+        from unstructured.partition.image import partition_image
+
+        elements = partition_image(
+            filename=path,
+            strategy="ocr_only",
+            languages=OCR_LANGUAGES,
+            infer_table_structure=False,
+        )
+        text = "\n".join(el.text for el in elements if getattr(el, "text", None))
+        if text.strip():
+            return re.sub(r"[^\x00-\x7F]+", " ", text)[:MAX_CHARS]
+    except Exception:
+        pass
+
+    try:
+        from PIL import Image
+        import pytesseract
+
+        text = pytesseract.image_to_string(Image.open(path), lang=OCR_LANGUAGES[0])
+        return re.sub(r"[^\x00-\x7F]+", " ", text)[:MAX_CHARS]
+    except Exception as exc:
+        raise RuntimeError(f"Image OCR failed: {exc}") from exc
+
+
+def _text_file_to_text(path: str) -> str:
+    """Return plain text from a text or code upload."""
+    try:
+        raw = Path(path).read_text(encoding="utf-8", errors="ignore")
+    except Exception as exc:
+        raise RuntimeError(f"Text file read failed: {exc}") from exc
+    return re.sub(r"[^\x00-\x7F]+", " ", raw)[:MAX_CHARS]
+
+
+def _source_to_text(path: str) -> str:
+    ext = Path(path).suffix.lower()
+    if ext == ".pdf":
+        return _pdf_to_text(path)
+    if ext in _IMAGE_EXTENSIONS:
+        return _image_to_text(path)
+    if ext in _TEXT_EXTENSIONS:
+        return _text_file_to_text(path)
+    raise ValueError(f"Unsupported file type: {ext or 'unknown'}")
 
 
 def _clean_json(raw: str) -> str:
@@ -382,19 +435,13 @@ def _wrap_python_code_blocks(text: str) -> str:
     return "\n".join(result)
 
 
-def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
+def _extract_questions_from_text(source_text: str) -> list[dict]:
     """
-    Extract questions, enrich context, and generate rubrics from a PDF using the LLM.
+    Extract questions, enrich context, and generate rubrics from a source text blob using the LLM.
     """
     llm = get_llm()
 
-    # Use partition_pdf to extract text from the PDF
-    try:
-        pdf_text = _pdf_to_text(pdf_path)  # Use the helper function to extract text
-    except Exception as e:
-        st.error(f"Error extracting text from PDF: {e}")
-        return []
-
+    pdf_text = source_text
     st.write(f"✂️ Characters sent to LLM (per call): {len(pdf_text):,}")
 
     # Pass-1: Extract questions
@@ -512,3 +559,21 @@ def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
             q["answer"] = "Rubric generation failed."
     st.success("✅ Pass-3: rubrics generated")
     return enriched_questions
+
+
+def extract_questions_from_pdf(pdf_path: str) -> list[dict]:
+    """Backwards-compatible PDF entrypoint."""
+    try:
+        return _extract_questions_from_text(_pdf_to_text(pdf_path))
+    except Exception as e:
+        st.error(f"Error extracting text from PDF: {e}")
+        return []
+
+
+def extract_questions_from_source(source_path: str) -> list[dict]:
+    """Dispatch PDF, image, text, and code uploads into the existing three-pass pipeline."""
+    try:
+        return _extract_questions_from_text(_source_to_text(source_path))
+    except Exception as e:
+        st.error(f"Error extracting text from file: {e}")
+        return []
