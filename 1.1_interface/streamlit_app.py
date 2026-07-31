@@ -241,42 +241,237 @@ def set_query_params():
 if st.session_state.page == 'main':
     st.sidebar.empty()
 
-    left_space, centre_column, right_space = st.columns([1, 1.4, 1])
+    # A3-style landing page CSS
+    st.markdown(
+        """
+<style>
+    [data-testid="stAppViewContainer"] {
+        background:
+            radial-gradient(
+                circle at 15% 20%,
+                rgba(37, 99, 235, 0.18),
+                transparent 32%
+            ),
+            linear-gradient(
+                135deg,
+                #071426 0%,
+                #0A1930 48%,
+                #0D2240 100%
+            );
+    }
 
-    with centre_column:
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1180px;
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+    }
+
+    div[data-testid="stButton"] > button {
+        min-height: 58px;
+        border-radius: 12px;
+        border: 1px solid rgba(96, 165, 250, 0.35);
+        background: linear-gradient(
+            90deg,
+            #2563EB 0%,
+            #1D4ED8 100%
+        );
+        color: white;
+        font-size: 15px;
+        font-weight: 700;
+        transition: all 0.2s ease;
+    }
+
+    div[data-testid="stButton"] > button:hover {
+        border-color: #60A5FA;
+        background: linear-gradient(
+            90deg,
+            #1D4ED8 0%,
+            #1E40AF 100%
+        );
+        transform: translateY(-1px);
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 22px;
+        border: 1px solid rgba(148, 163, 184, 0.20);
+        background: rgba(12, 30, 55, 0.82);
+        box-shadow: 0 22px 55px rgba(0, 0, 0, 0.30);
+    }
+</style>
+""",
+        unsafe_allow_html=True
+    )
+
+    left_column, right_column = st.columns(
+        [1.15, 0.95],
+        gap="large",
+        vertical_alignment="center"
+    )
+
+    with left_column:
         logo_path = os.path.join(
             os.path.dirname(__file__),
             "assets",
             "cybernexa_logo.png"
         )
 
-        st.image(logo_path, use_container_width=True)
+        logo_left, logo_middle, logo_right = st.columns(
+            [1, 1.4, 1]
+        )
 
+        with logo_middle:
+            st.image(
+                logo_path,
+                width=230
+            )
         st.markdown(
-            "<h3 style='text-align: center;'>Secure AI-Powered Learning Platform</h3>",
+            """<div style="color:#C7D8EA;font-size:14px;font-weight:600;text-align:center;margin-top:4px;">
+Secure AI-Powered Learning Platform
+</div>
+
+<div style="display:flex;align-items:center;gap:12px;margin:28px 0 30px 0;">
+<div style="height:1px;flex:1;background:#2A6285;"></div>
+<div style="width:34px;height:34px;border-radius:50%;border:1px solid #2A6285;display:flex;justify-content:center;align-items:center;font-size:16px;">
+🔒
+</div>
+<div style="height:1px;flex:1;background:#2A6285;"></div>
+</div>
+
+<div style="display:grid;gap:24px;max-width:390px;margin:0 auto;text-align:left;">
+
+<div style="display:grid;grid-template-columns:55px 1fr;align-items:center;">
+<div style="font-size:30px;text-align:center;">🛡️</div>
+<div>
+<div style="color:#FFFFFF;font-size:16px;font-weight:800;">Secure</div>
+<div style="color:#8FA8C2;font-size:13px;margin-top:3px;">Your data is safe with us.</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:55px 1fr;align-items:center;">
+<div style="font-size:30px;text-align:center;">👥</div>
+<div>
+<div style="color:#FFFFFF;font-size:16px;font-weight:800;">Role-Based Access</div>
+<div style="color:#8FA8C2;font-size:13px;margin-top:3px;">Separate dashboards for students and teachers.</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:55px 1fr;align-items:center;">
+<div style="font-size:30px;text-align:center;">🧠</div>
+<div>
+<div style="color:#FFFFFF;font-size:16px;font-weight:800;">Smart Learning</div>
+<div style="color:#8FA8C2;font-size:13px;margin-top:3px;">AI-driven quizzes and instant feedback.</div>
+</div>
+</div>
+
+</div>""",
             unsafe_allow_html=True
         )
+        with right_column:
+          with st.container(border=True):
 
-        st.markdown(
-            "<p style='text-align: center;'>Choose your role to continue</p>",
-            unsafe_allow_html=True
-        )
+            st.markdown(
+                """
+<div style="text-align:center; padding:18px 16px 10px 16px;">
 
-        btn_teacher = st.button(
-            "👩‍🏫 Teacher / Tutor Portal",
-            key="teacher_btn",
-            help="Access quiz management and teaching tools",
-            use_container_width=True
-        )
+<div style="
+width:54px;
+height:54px;
+margin:0 auto 16px auto;
+border-radius:15px;
+background:rgba(37, 99, 235, 0.18);
+border:1px solid rgba(96, 165, 250, 0.35);
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:27px;
+">
+🔐
+</div>
 
-        btn_student = st.button(
-            "🧑‍🎓 Student Portal",
-            key="student_btn",
-            help="Access quizzes and learning activities",
-            use_container_width=True
-        )
+<h2 style="
+color:#FFFFFF;
+font-size:27px;
+margin:0 0 8px 0;
+font-weight:800;
+">
+Welcome to CyberNexa
+</h2>
 
-        st.caption("🔒 Your learning data is protected")
+<p style="
+color:#9FB6D4;
+font-size:14px;
+line-height:1.6;
+margin:0 0 26px 0;
+">
+Choose your role to enter the secure learning platform.
+</p>
+
+</div>
+""",
+                unsafe_allow_html=True
+            )
+
+            btn_student = st.button(
+                "🎓 Continue as Student",
+                key="student_btn",
+                help="Open the student learning portal",
+                use_container_width=True
+            )
+
+            st.markdown(
+                """
+<div style="
+text-align:center;
+color:#6F89A7;
+font-size:12px;
+margin:8px 0;
+">
+OR
+</div>
+""",
+                unsafe_allow_html=True
+            )
+
+            btn_teacher = st.button(
+                "👩‍🏫 Continue as Teacher",
+                key="teacher_btn",
+                help="Open quiz management and analytics",
+                use_container_width=True
+            )
+
+            st.markdown(
+                """
+<div style="
+margin-top:24px;
+padding:14px 16px;
+border-radius:11px;
+background:rgba(15, 39, 68, 0.72);
+border:1px solid rgba(148, 163, 184, 0.16);
+text-align:center;
+color:#91A9C4;
+font-size:12px;
+line-height:1.6;
+">
+🔒 Secure access enabled<br>
+Your learning information is protected.
+</div>
+
+<div style="
+text-align:center;
+color:#5F7895;
+font-size:11px;
+margin-top:18px;
+margin-bottom:8px;
+">
+CyberNexa • Secure AI-Powered Education
+</div>
+""",
+                unsafe_allow_html=True
+            )
 
     if btn_teacher:
         st.session_state.page = 'teacher'
