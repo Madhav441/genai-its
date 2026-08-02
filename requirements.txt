@@ -15,12 +15,7 @@ groq
 pillow
 PyYAML
 requests
-unstructured
-pi_heif
-unstructured_inference
-pdf2image
-opencv-python
-unstructured_pytesseract
+PyMuPDF
 PyDrive2
 google-cloud-firestore
 firebase-admin

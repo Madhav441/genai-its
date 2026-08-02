@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -9,6 +10,16 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(dict(st.secrets["FIREBASE"]))
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+
+# ── Analytics logger ──────────────────────────────────────────────────
+try:
+    from response_tracker import (
+        log_event, log_answer, log_question_presented,
+        log_question_advanced, start_session, end_session,
+    )
+    _TRACKING = True
+except ImportError:
+    _TRACKING = False
 
 def get_groq_llm(model_name=None, temperature=None):
     # Loads model and temperature from .env, with agent-specific overrides
@@ -30,6 +41,12 @@ class QuizAgent:
         self.started = self.performance.get("started", False)
         self.instructions_given = self.performance.get("instructions_given", False)
         self.llm = get_groq_llm()
+        # Analytics session tracking
+        self.session_id = self.performance.get("session_id", "")
+        if _TRACKING and not self.session_id and self.started:
+            self.session_id = start_session(student_id, subject, week)
+            self.performance["session_id"] = self.session_id
+            self.save_performance()
 
     def load_performance(self):
         doc_ref = db.document(self.firestore_doc)
@@ -223,6 +240,12 @@ class QuizAgent:
         # End quiz if user wants to quit/exit/stop/finish at any time
         if user_clean in ["quit", "exit", "stop", "finish"]:
             self.performance["started"] = False
+            if _TRACKING and self.session_id:
+                end_session(self.student_id, self.subject, self.week, self.session_id,
+                            summary={"final_question": self.current_q,
+                                     "total_questions": len(self.quiz_data),
+                                     "answers": self.performance.get("answers", {})})
+                self.performance["session_id"] = ""
             self.save_performance()
             return "Thank you for participating! Please complete the post-quiz survey below.", "qualtrics2"
 
@@ -230,8 +253,15 @@ class QuizAgent:
         if not self.performance["started"]:
             self.performance["started"] = True
             self.performance["instructions_given"] = True
+            # Start analytics session
+            if _TRACKING:
+                self.session_id = start_session(self.student_id, self.subject, self.week)
+                self.performance["session_id"] = self.session_id
             self.save_performance()
             q = self.quiz_data[self.current_q]
+            if _TRACKING and self.session_id:
+                log_question_presented(self.student_id, self.subject, self.week,
+                                       self.session_id, str(q.get("id", self.current_q)))
             # Only return the first question, not instructions again
             return self.present_question(q), False
 
@@ -253,16 +283,42 @@ class QuizAgent:
             if last_score >= 0.5:
                 # Only allow moving to next question if not on last
                 if self.current_q >= len(self.quiz_data) - 1:
+                    prev_q = self.current_q
                     self.current_q = len(self.quiz_data)
                     self.performance["current_q"] = self.current_q
+                    if _TRACKING and self.session_id:
+                        log_event(self.student_id, self.subject, self.week,
+                                  "quiz_completed", session_id=self.session_id)
+                        end_session(self.student_id, self.subject, self.week, self.session_id,
+                                    summary={"total_questions": len(self.quiz_data),
+                                             "questions_attempted": prev_q + 1,
+                                             "answers": self.performance.get("answers", {})})
+                        self.performance["session_id"] = ""
                     self.save_performance()
                     return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
+                prev_q = self.current_q
                 self.current_q += 1
                 self.performance["current_q"] = self.current_q
                 self.save_performance()
                 if self.current_q < len(self.quiz_data):
-                    return self.present_question(self.quiz_data[self.current_q]), False
+                    next_q = self.quiz_data[self.current_q]
+                    if _TRACKING and self.session_id:
+                        log_question_advanced(self.student_id, self.subject, self.week,
+                                              self.session_id, str(prev_q), str(self.current_q),
+                                              last_score, len(self.performance["answers"].get(str(prev_q), [])))
+                        log_question_presented(self.student_id, self.subject, self.week,
+                                               self.session_id, str(next_q.get("id", self.current_q)))
+                    return self.present_question(next_q), False
                 else:
+                    if _TRACKING and self.session_id:
+                        log_event(self.student_id, self.subject, self.week,
+                                  "quiz_completed", session_id=self.session_id)
+                        end_session(self.student_id, self.subject, self.week, self.session_id,
+                                    summary={"total_questions": len(self.quiz_data),
+                                             "questions_attempted": self.current_q,
+                                             "answers": self.performance.get("answers", {})})
+                        self.performance["session_id"] = ""
+                        self.save_performance()
                     return "🎉 You've completed all questions! Please complete the post-quiz survey below.", "qualtrics2"
             else:
                 # Do NOT advance, must retry
@@ -270,15 +326,24 @@ class QuizAgent:
         # Check if the input is an answer (simple heuristic: not a question, not empty)
         is_question = user_input.strip().endswith("?") or user_input.strip().lower().startswith(("how", "why", "what", "can", "does", "do", "is", "are", "could", "would", "should"))
         if user_input.strip() and not is_question:
+            _t0 = time.time()
             relevant, score, feedback = self.evaluate_answer(user_input, q)
+            _eval_ms = int((time.time() - _t0) * 1000)
             # Store the attempt
             attempts = self.performance["answers"].setdefault(q_id, [])
+            attempt_num = len(attempts) + 1
             attempts.append({
-                "attempt": len(attempts) + 1,
+                "attempt": attempt_num,
                 "answer": user_input,
                 "feedback": feedback,
                 "score": score
             })
+            # Log to analytics
+            if _TRACKING and self.session_id:
+                log_answer(self.student_id, self.subject, self.week,
+                           self.session_id, q_id, attempt_num,
+                           user_input, score, feedback,
+                           evaluation_latency_ms=_eval_ms)
             # Store last valid score and qid for continue logic
             self.performance["last_score"] = score
             self.performance["last_qid"] = str(self.current_q + 1)
@@ -330,16 +395,25 @@ class QuizAgent:
                 , False)
         # If the input is a question or exploration, answer but do NOT advance
         if is_question:
+            _t0 = time.time()
             relevant, score, feedback = self.evaluate_answer(user_input, q)
+            _eval_ms = int((time.time() - _t0) * 1000)
             # Store the attempt as an exploration
             attempts = self.performance["answers"].setdefault(q_id, [])
+            attempt_num = len(attempts) + 1
             attempts.append({
-                "attempt": len(attempts) + 1,
+                "attempt": attempt_num,
                 "answer": user_input,
                 "feedback": feedback,
                 "score": score,
                 "exploration": True
             })
+            # Log exploration to analytics
+            if _TRACKING and self.session_id:
+                log_answer(self.student_id, self.subject, self.week,
+                           self.session_id, q_id, attempt_num,
+                           user_input, score, feedback,
+                           is_exploration=True, evaluation_latency_ms=_eval_ms)
             self.save_performance()
             return (
                 f"{feedback}\n\nWhen you're ready, you can try answering the quiz question or type 'next' to move on."

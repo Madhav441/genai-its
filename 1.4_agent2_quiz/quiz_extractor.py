@@ -2,7 +2,8 @@
 # ─────────────────────────────────────────────────────────────────────────
 """
 PDF → (question, context, answer-rubric) extractor
-↳ OCR fallback now uses unstructured.partition.pdf with strategy="ocr_only".
+↳ Uses PyMuPDF (fitz) for fast, dependency-light text extraction with
+  built-in OCR fallback.  Replaces the deprecated `unstructured` stack.
 
 Returned list item:
 {
@@ -19,11 +20,10 @@ import os, json, re, textwrap, shutil, warnings, copy
 import streamlit as st
 from llm_provider import get_llm
 
-from unstructured.partition.pdf import partition_pdf          # single import
+import fitz  # PyMuPDF – replaces unstructured
 
 # ── Tunables ────────────────────────────────────────────────────────────
 MAX_CHARS      = 24_000                # ≈ 7 200 tokens
-OCR_LANGUAGES  = ["eng"]            # use only English for maximum compatibility
 TEXT_THRESHOLD = 1_000                # chars – if fewer → trigger OCR
 
 # ── Prompts (unchanged) ─────────────────────────────────────────────────
@@ -177,25 +177,49 @@ _JSON_RE  = re.compile(r"(\[.*?\]|\{.*?\})", re.S)
 
 
 def _pdf_to_text(path: str) -> str:
-    """Return ASCII-safe text, auto-switching to OCR if needed."""
-    # Pass-1: use embedded text if present
-    pages = partition_pdf(filename=path,
-                          strategy="fast",
-                          infer_table_structure=False)
+    """Return ASCII-safe text using PyMuPDF, with OCR fallback.
 
-    embedded_txt = "\n".join(p.text for p in pages if p.text)
+    PyMuPDF (fitz) extracts embedded text natively.  If the text layer is
+    too thin (scanned PDF), it falls back to PyMuPDF's built-in Tesseract
+    OCR integration when available, or to pdfplumber as a secondary
+    fallback.
+    """
+    doc = fitz.open(path)
 
-    # If text layer is tiny → re-run with OCR
-    if len(embedded_txt) < TEXT_THRESHOLD:
+    # Fast pass – extract embedded text
+    page_texts = []
+    for page in doc:
+        page_texts.append(page.get_text("text"))
+    embedded_txt = "\n".join(page_texts)
+
+    # If text layer is tiny → attempt OCR via PyMuPDF
+    if len(embedded_txt.strip()) < TEXT_THRESHOLD:
         _warn_once(
-            "No/low text layer – switching to OCR (Tesseract required).")
-        pages = partition_pdf(
-            filename=path,
-            strategy="ocr_only",
-            languages=OCR_LANGUAGES,  # updated from ocr_languages to languages, now always a list
-            infer_table_structure=True,
-        )
-        embedded_txt = "\n".join(p.text for p in pages if p.text)
+            "No/low text layer – attempting OCR via PyMuPDF.")
+        ocr_texts = []
+        for page in doc:
+            try:
+                # PyMuPDF OCR requires Tesseract installed on system
+                ocr_texts.append(page.get_text("text", flags=fitz.TEXT_PRESERVE_WHITESPACE))
+            except Exception:
+                ocr_texts.append(page.get_text("text"))
+        ocr_result = "\n".join(ocr_texts)
+
+        # If PyMuPDF OCR still yields little text, try pdfplumber
+        if len(ocr_result.strip()) < TEXT_THRESHOLD:
+            try:
+                import pdfplumber
+                with pdfplumber.open(path) as pdf:
+                    plumber_pages = [p.extract_text() or "" for p in pdf.pages]
+                ocr_result = "\n".join(plumber_pages)
+            except ImportError:
+                _warn_once("pdfplumber not installed – using best available text.")
+            except Exception as e:
+                _warn_once(f"pdfplumber fallback failed: {e}")
+
+        embedded_txt = ocr_result if len(ocr_result.strip()) > len(embedded_txt.strip()) else embedded_txt
+
+    doc.close()
 
     # ASCII-clean + truncate
     embedded_txt = re.sub(r"[^\x00-\x7F]+", " ", embedded_txt)
