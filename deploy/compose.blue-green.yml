@@ -1,0 +1,60 @@
+name: cybernexa-blue-green
+
+services:
+  blue:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: cybernexa-app:${IMAGE_TAG:-ci}
+    environment:
+      DEPLOYMENT_SLOT: blue
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - http://localhost:8501/_stcore/health
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - cybernexa
+
+  green:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: cybernexa-app:${IMAGE_TAG:-ci}
+    environment:
+      DEPLOYMENT_SLOT: green
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - http://localhost:8501/_stcore/health
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - cybernexa
+
+  proxy:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d:ro
+    depends_on:
+      blue:
+        condition: service_healthy
+      green:
+        condition: service_healthy
+    networks:
+      - cybernexa
+
+networks:
+  cybernexa:
+    driver: bridge
