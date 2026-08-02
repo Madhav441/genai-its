@@ -833,23 +833,27 @@ if st.session_state.page == 'teacher':
         st.info("Upload a new quiz PDF to create a new quiz.")
         new_subject = st.text_input("Enter Subject Name (e.g. COMP801)", key="new_subject")
         new_week = st.text_input("Enter Week (e.g. Week 1)", key="new_week")
-        uploaded_pdf = st.file_uploader("Upload Quiz PDF", type=["pdf"], key="new_quiz_pdf")
-        if new_subject and new_week and uploaded_pdf:
-            # Save uploaded PDF to a temp location inside BASE so extraction utilities can access it
-            temp_pdf_path = os.path.join(BASE, "data", "uploaded_pdfs", uploaded_pdf.name)
-            os.makedirs(os.path.dirname(temp_pdf_path), exist_ok=True)
-            with open(temp_pdf_path, "wb") as f:
-                f.write(uploaded_pdf.read())
+        uploaded_file = st.file_uploader(
+            "Upload Quiz File",
+            type=["pdf", "png", "jpg", "jpeg", "gif", "webp", "txt", "py", "js", "ts", "java", "c", "cpp", "cs", "html", "css", "json", "yaml", "yml", "md", "sh", "bat", "ps1", "sql"],
+            key="new_quiz_file",
+        )
+        if new_subject and new_week and uploaded_file:
+            # Save uploaded file to a temp location inside BASE so extraction utilities can access it
+            temp_file_path = os.path.join(BASE, "data", "uploaded_pdfs", uploaded_file.name)
+            os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+            with open(temp_file_path, "wb") as f:
+                f.write(uploaded_file.read())
             import quiz_extractor
             # Only run extraction if not already done for this PDF
-            if 'uploaded_pdf_name' not in st.session_state or st.session_state.uploaded_pdf_name != uploaded_pdf.name:
-                with st.spinner("Extracting questions from PDF (Pass 1)..."):
+            if 'uploaded_file_name' not in st.session_state or st.session_state.uploaded_file_name != uploaded_file.name:
+                with st.spinner("Extracting questions from file (Pass 1)..."):
                     try:
-                        questions = quiz_extractor.extract_questions_from_pdf(temp_pdf_path)
+                        questions = quiz_extractor.extract_questions_from_source(temp_file_path)
                         st.session_state.uploaded_questions = questions
-                        st.session_state.uploaded_pdf_name = uploaded_pdf.name
+                        st.session_state.uploaded_file_name = uploaded_file.name
                     except Exception as e:
-                        st.error(f"Error processing PDF: {e}")
+                        st.error(f"Error processing file: {e}")
                         st.session_state.uploaded_questions = []
             # If already extracted, use session state
             questions = st.session_state.get('uploaded_questions', [])
