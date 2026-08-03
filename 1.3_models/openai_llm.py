@@ -1,32 +1,32 @@
-"""Groq chat-model configuration."""
+"""OpenAI chat-model configuration."""
 
 from __future__ import annotations
 
 import os
 from typing import Any
 
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 
 
-def create_groq_llm(**overrides: Any) -> ChatGroq:
-    """Create a Groq chat model using environment configuration."""
+def create_openai_llm(**overrides: Any) -> ChatOpenAI:
+    """Create an OpenAI chat model using environment configuration."""
 
     api_key = (
         overrides.get("api_key")
-        or overrides.get("groq_api_key")
-        or os.getenv("GROQ_API_KEY")
+        or overrides.get("openai_api_key")
+        or os.getenv("OPENAI_API_KEY")
     )
 
     if not api_key:
         raise RuntimeError(
-            "GROQ_API_KEY is not configured. "
-            "Add it to your local .env file or select Ollama."
+            "OPENAI_API_KEY is not configured. "
+            "Add it to your local .env file or select Groq or Ollama."
         )
 
     model = str(
         overrides.get("model")
         or overrides.get("model_name")
-        or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     )
 
     temperature_value = overrides.get("temperature")
@@ -37,8 +37,8 @@ def create_groq_llm(**overrides: Any) -> ChatGroq:
     if max_tokens_value is None:
         max_tokens_value = os.getenv("LLM_MAX_TOKENS", "1024")
 
-    return ChatGroq(
-        groq_api_key=api_key,
+    return ChatOpenAI(
+        api_key=api_key,
         model=model,
         temperature=float(temperature_value),
         max_tokens=int(max_tokens_value),
