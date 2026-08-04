@@ -141,6 +141,25 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(dict(st.secrets["FIREBASE"]))
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+def load_student_performance():
+    """Load all student performance records from Firestore."""
+    performance = []
+
+    docs = db.collection("student_performance").stream()
+
+    for doc in docs:
+        data = doc.to_dict() or {}
+
+        # Keep the Firestore document ID for the report.
+        data["document_id"] = doc.id
+
+        # Older records may not contain student_id as a field.
+        if not data.get("student_id"):
+            data["student_id"] = doc.id.split("_")[0]
+
+        performance.append(data)
+
+    return performance
 
 def save_quiz_to_firestore(subject, week, questions):
     doc_id = f"{subject}_{week}"
@@ -493,7 +512,7 @@ if st.session_state.page == 'teacher':
         st.rerun()
 
     # Teacher navigation
-    nav_col1, nav_col2 = st.columns(2)
+    nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 0.75])
 
     with nav_col1:
         st.button(
@@ -513,7 +532,18 @@ if st.session_state.page == 'teacher':
             set_query_params()
             st.rerun()
 
-        # CyberNexa Branding
+    with nav_col3:
+        if st.button(
+            "🚪 Log Out",
+            key="teacher_logout",
+            use_container_width=True
+        ):
+            st.session_state.pop("teacher_id", None)
+            st.session_state.page = "main"
+            set_query_params()
+            st.rerun()
+
+    # CyberNexa branding
     logo_path = os.path.join(
         os.path.dirname(__file__),
         "assets",
@@ -939,8 +969,8 @@ if st.session_state.page == 'teacher':
 elif st.session_state.page == 'teacher_analytics':
     st.sidebar.empty()
 
-    # Teacher navigation
-    nav_col1, nav_col2 = st.columns(2)
+    # Teacher analytics navigation
+    nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 0.75])
 
     with nav_col1:
         if st.button(
@@ -960,6 +990,17 @@ elif st.session_state.page == 'teacher_analytics':
             use_container_width=True
         )
 
+    with nav_col3:
+        if st.button(
+            "🚪 Log Out",
+            key="analytics_logout",
+            use_container_width=True
+        ):
+            st.session_state.pop("teacher_id", None)
+            st.session_state.page = "main"
+            set_query_params()
+            st.rerun()
+
     # CyberNexa logo
     logo_path = os.path.join(
         os.path.dirname(__file__),
@@ -976,32 +1017,89 @@ elif st.session_state.page == 'teacher_analytics':
     )
 
     st.markdown("---")
+        # Load performance data from Firestore
+    performance = load_student_performance()
+
+    # Prepare rows for chart, table and report
+    analytics_rows = []
+
+    for record in performance:
+        score = record.get("last_score", 0)
+
+        try:
+            score = float(score) * 100
+        except (TypeError, ValueError):
+            score = 0.0
+
+        analytics_rows.append({
+            "Student ID": record.get("student_id", "Unknown"),
+            "Performance Record": record.get(
+                "document_id",
+                "Unknown"
+            ),
+            "Current Question": record.get("current_q", 0),
+            "Score": round(score, 1)
+        })
 
     # Summary metrics
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
     with metric_col1:
+        students = set()
+
+        for p in performance:
+            if p.get("student_id"):
+                students.add(p["student_id"])
+
         st.metric(
             label="Total Students",
-            value="0"
+            value=len(students)
         )
 
     with metric_col2:
+        attempts = len(performance)
+
         st.metric(
             label="Quiz Attempts",
-            value="0"
+            value=attempts
         )
 
     with metric_col3:
+        scores = []
+
+        for p in performance:
+            score = p.get("last_score")
+
+            if isinstance(score, (int, float)):
+                scores.append(float(score) * 100)
+
+        average_score = (
+            sum(scores) / len(scores)
+            if scores
+            else 0
+        )
+
         st.metric(
             label="Average Score",
-            value="0%"
+            value=f"{average_score:.1f}%"
         )
 
     with metric_col4:
+        completed = 0
+
+        for p in performance:
+            if p.get("current_q", 0) > 0:
+                completed += 1
+
+        completion_rate = (
+            completed / attempts * 100
+            if attempts
+            else 0
+        )
+
         st.metric(
             label="Completion Rate",
-            value="0%"
+            value=f"{completion_rate:.0f}%"
         )
 
     st.markdown("---")
@@ -1009,18 +1107,45 @@ elif st.session_state.page == 'teacher_analytics':
     # Performance section
     st.subheader("📈 Student Performance Overview")
 
-    st.info(
-        "Student performance charts will appear here when quiz data is available."
-    )
+    if analytics_rows:
+        import pandas as pd
+
+        performance_df = pd.DataFrame(analytics_rows)
+
+        chart_df = performance_df[
+            ["Performance Record", "Score"]
+        ].set_index("Performance Record")
+
+        st.bar_chart(chart_df)
+    else:
+        st.info(
+            "Student performance charts will appear here "
+            "when quiz data is available."
+        )
 
     st.markdown("---")
 
     # Recent attempts section
     st.subheader("📋 Recent Quiz Attempts")
 
-    st.info(
-        "No student quiz attempts are available yet."
-    )
+    if analytics_rows:
+        import pandas as pd
+
+        attempts_df = pd.DataFrame(analytics_rows)
+
+        attempts_df["Score"] = attempts_df["Score"].map(
+            lambda value: f"{value:.1f}%"
+        )
+
+        st.dataframe(
+            attempts_df,
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info(
+            "No student quiz attempts are available yet."
+        )
 
     st.markdown("---")
 
@@ -1029,23 +1154,53 @@ elif st.session_state.page == 'teacher_analytics':
     with insight_col:
         st.subheader("🤖 Learning Insights")
 
-        st.info(
-            "AI-generated learning insights will appear here after student activity is recorded."
-        )
+        if analytics_rows:
+            highest_score = max(
+                row["Score"] for row in analytics_rows
+            )
+
+            insight_average = sum(
+                row["Score"] for row in analytics_rows
+            ) / len(analytics_rows)
+
+            st.success(
+                f"Highest score: {highest_score:.1f}%"
+            )
+
+            st.info(
+                f"Average score: {insight_average:.1f}%"
+            )
+        else:
+            st.info(
+                "Learning insights will appear after "
+                "student activity is recorded."
+            )
 
     with report_col:
         st.subheader("📄 Reports")
 
-        st.info(
-            "Teacher reports will become available when performance data is connected."
-        )
+        if analytics_rows:
+            import pandas as pd
 
-        st.button(
-            "Generate Report",
-            key="generate_teacher_report",
-            disabled=True,
-            use_container_width=True
-        )
+            report_df = pd.DataFrame(analytics_rows)
+
+            csv_report = report_df.to_csv(
+                index=False
+            ).encode("utf-8")
+
+            st.download_button(
+                label="Download Analytics Report",
+                data=csv_report,
+                file_name="analytics_report.csv",
+                mime="text/csv",
+                key="download_analytics_report",
+                use_container_width=True
+            )
+        else:
+            st.info(
+                "Teacher reports will become available "
+                "when performance data is connected."
+            )
 
     st.stop()
 elif st.session_state.page == 'student_login':
