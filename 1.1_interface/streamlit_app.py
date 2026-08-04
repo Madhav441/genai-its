@@ -4,7 +4,7 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 # Import the progress service to track student quiz completions
-from progress_service import get_quizzes_completed, get_average_score
+from progress_service import get_quizzes_completed, get_average_score, get_improvement_rate
 # Import the formatting utility for quiz context
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
@@ -1904,14 +1904,14 @@ A quick overview of your current learning activity.
 
         st.metric(
             label="Average Score",
-            value=f"{average_score[0]:.1f}%",
+            value=f"{average_score:.0f}%",
             help="Your average score across completed quizzes."
         )
 
     with summary_col3:
         st.metric(
             label="Improvement Rate",
-            value="0%",
+            value= f"{get_improvement_rate(st.session_state.student_id):.0f}%",
             help="Your performance improvement between attempts."
         )
 

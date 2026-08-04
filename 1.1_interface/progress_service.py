@@ -1,8 +1,7 @@
 from firebase_admin import firestore
 
-db = firestore.client()
-
 def get_quizzes_completed(student_id):
+    db = firestore.client()
     """
     Returns the number of completed quiz documents
     for the given student.
@@ -24,6 +23,7 @@ def get_average_score(student_id):
     """
     Returns the student's average score across all completed quizzes.
     """
+    db = firestore.client()
 
     docs = db.collection("student_performance").stream()
 
@@ -60,4 +60,49 @@ def get_average_score(student_id):
     if not quiz_percentages:
         return 0
 
-    return (sum(quiz_percentages) / len(quiz_percentages), 1)
+    print("Quiz percentages:", quiz_percentages)
+    print("Average:", sum(quiz_percentages) / len(quiz_percentages))
+    return sum(quiz_percentages) / len(quiz_percentages)
+
+
+def get_improvement_rate(student_id):
+    """
+    Returns the student's performance improvement between attempts.
+    Compares the first attempt score with the latest attempt score
+    for each completed question.
+    """
+
+    db = firestore.client()
+
+    docs = db.collection("student_performance").stream()
+
+    improvements = []
+
+    for doc in docs:
+        if not doc.id.startswith(student_id + "_"):
+            continue
+
+        data = doc.to_dict()
+        answers = data.get("answers", {})
+
+        for attempts in answers.values():
+
+            if len(attempts) < 2:
+                continue
+
+            first_attempt = attempts[0]
+            latest_attempt = attempts[-1]
+
+            first_score = first_attempt.get("score", 0)
+            latest_score = latest_attempt.get("score", 0)
+
+            improvement = latest_score - first_score
+
+            improvements.append(improvement)
+
+    if not improvements:
+        return 0
+
+    average_improvement = sum(improvements) / len(improvements)
+
+    return average_improvement * 100
