@@ -167,3 +167,37 @@ It does not yet represent a complete end-to-end attack passing through the real 
 ### Next Step
 
 Once a shared integration branch is confirmed, the red-team scenarios can be converted into automated Pytest cases that send controlled attacks into the real system and verify that they are blocked, sanitised and logged correctly.
+
+## Runtime Audit Integration
+
+The audit logger is connected to the real rate limiter and LLM wrapper.
+
+It automatically records:
+
+- `rate_limit_hit` when an enforced limit is exceeded
+- `llm_api_call` after a successful model request
+- `system_error` when an LLM provider request fails
+
+Audit events contain operational metadata only. API keys, raw prompts, student answers, rubrics, answer keys and model response content are not logged.
+
+Runtime events are stored locally in `logs/audit_logs.jsonl`.
+
+To watch the audit log while using the application:
+
+    tail -f logs/audit_logs.jsonl
+
+Run the project tests with:
+
+    python3 -m pytest tests -q
+
+At the time of integration, all 35 tests passed.
+
+### RT-06 Rate-Limit Abuse Test
+
+The RT-06 demonstration sends repeated requests through the real rate limiter, confirms that the excessive request is blocked, creates a genuine `rate_limit_hit` event and verifies the event in the Firestore `audit_logs_test` collection.
+
+Run it with:
+
+    python3 1.5_security/rt06_rate_limit_firestore_demo.py
+
+RT-06 is currently the completed end-to-end red-team scenario. Other scenarios require their relevant controls, including the AI Gate, output guardrails, access control and file validation.
