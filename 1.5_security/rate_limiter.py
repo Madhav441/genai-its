@@ -7,6 +7,7 @@ or Firestore.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import threading
@@ -15,6 +16,36 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
+
+from audit_logger import audit_logger
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _audit_safely(
+    *,
+    event_type: str,
+    message: str,
+    severity: str = "INFO",
+    user_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Record an audit event without interrupting the application."""
+
+    try:
+        audit_logger.log_event(
+            event_type=event_type,
+            message=message,
+            severity=severity,
+            user_id=user_id,
+            source_module="rate_limiter",
+            metadata=metadata or {},
+        )
+    except Exception:
+        LOGGER.exception(
+            "The audit event could not be recorded."
+        )
 
 
 class RateLimitExceeded(RuntimeError):
@@ -152,6 +183,19 @@ class UsageGovernor:
                     + 1,
                 )
 
+                _audit_safely(
+                    event_type="rate_limit_hit",
+                    severity="WARNING",
+                    user_id=caller_id,
+                    message="Request-window rate limit exceeded.",
+                    metadata={
+                        "limit_type": "request_window",
+                        "request_limit": self.config.requests,
+                        "window_seconds": self.config.window_seconds,
+                        "retry_after_seconds": retry_after,
+                    },
+                )
+
                 raise RateLimitExceeded(
                     "Request limit reached. Please wait "
                     f"approximately {retry_after} second(s) "
@@ -167,6 +211,22 @@ class UsageGovernor:
                 self._daily_counts[daily_key]
                 >= self.config.daily_request_limit
             ):
+                _audit_safely(
+                    event_type="rate_limit_hit",
+                    severity="WARNING",
+                    user_id=caller_id,
+                    message="Daily AI request limit exceeded.",
+                    metadata={
+                        "limit_type": "daily_request",
+                        "daily_request_limit": (
+                            self.config.daily_request_limit
+                        ),
+                        "daily_requests_used": (
+                            self._daily_counts[daily_key]
+                        ),
+                    },
+                )
+
                 raise DailyBudgetExceeded(
                     "The daily AI request limit has been "
                     "reached. Please contact the system "
@@ -185,6 +245,23 @@ class UsageGovernor:
                 and projected_cost
                 > self.config.daily_budget_usd
             ):
+                _audit_safely(
+                    event_type="rate_limit_hit",
+                    severity="WARNING",
+                    user_id=caller_id,
+                    message="Daily AI cost budget exceeded.",
+                    metadata={
+                        "limit_type": "daily_cost",
+                        "daily_budget_usd": (
+                            self.config.daily_budget_usd
+                        ),
+                        "projected_cost_usd": round(
+                            projected_cost,
+                            6,
+                        ),
+                    },
+                )
+
                 raise DailyBudgetExceeded(
                     "The estimated cost of this AI request "
                     "would exceed the daily budget of "
@@ -491,14 +568,40 @@ class GovernedLLM:
             ),
         )
 
-        response = self._llm.invoke(
-            *args,
-            **kwargs,
-        )
+        try:
+            response = self._llm.invoke(
+                *args,
+                **kwargs,
+            )
+        except Exception as exc:
+            _audit_safely(
+                event_type="system_error",
+                severity="ERROR",
+                user_id=self._caller_id,
+                message="LLM provider invocation failed.",
+                metadata={
+                    "provider": self._provider,
+                    "operation": "invoke",
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise
 
         self._record_response_cost(
             request,
             response,
+        )
+
+        _audit_safely(
+            event_type="llm_api_call",
+            severity="INFO",
+            user_id=self._caller_id,
+            message="LLM provider invocation completed.",
+            metadata={
+                "provider": self._provider,
+                "operation": "invoke",
+                "successful": True,
+            },
         )
 
         return response
@@ -523,14 +626,40 @@ class GovernedLLM:
             ),
         )
 
-        response = await self._llm.ainvoke(
-            *args,
-            **kwargs,
-        )
+        try:
+            response = await self._llm.ainvoke(
+                *args,
+                **kwargs,
+            )
+        except Exception as exc:
+            _audit_safely(
+                event_type="system_error",
+                severity="ERROR",
+                user_id=self._caller_id,
+                message="Async LLM provider invocation failed.",
+                metadata={
+                    "provider": self._provider,
+                    "operation": "ainvoke",
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise
 
         self._record_response_cost(
             request,
             response,
+        )
+
+        _audit_safely(
+            event_type="llm_api_call",
+            severity="INFO",
+            user_id=self._caller_id,
+            message="Async LLM provider invocation completed.",
+            metadata={
+                "provider": self._provider,
+                "operation": "ainvoke",
+                "successful": True,
+            },
         )
 
         return response
