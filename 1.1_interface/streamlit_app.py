@@ -2023,6 +2023,60 @@ Track your quiz performance, learning activity and improvement over time.
         )
 
     st.write("")
+     # Load this student's performance records from Firestore
+    student_id = st.session_state.student_id
+    student_records = []
+
+    for performance_doc in db.collection(
+        "student_performance"
+    ).stream():
+
+        if not performance_doc.id.startswith(
+            f"{student_id}_"
+        ):
+            continue
+
+        performance_data = performance_doc.to_dict() or {}
+
+        score = performance_data.get("last_score", 0)
+
+        try:
+            score = float(score) * 100
+        except (TypeError, ValueError):
+            score = 0.0
+
+        quiz_name = performance_doc.id.replace(
+            f"{student_id}_",
+            "",
+            1
+        )
+
+        answers = performance_data.get("answers", {})
+        latest_feedback = ""
+
+        if isinstance(answers, dict):
+            for attempts in answers.values():
+                if not isinstance(attempts, list):
+                    continue
+
+                for attempt in attempts:
+                    if not isinstance(attempt, dict):
+                        continue
+
+                    feedback = attempt.get("feedback")
+
+                    if feedback:
+                        latest_feedback = feedback
+
+        student_records.append({
+            "Quiz": quiz_name,
+            "Current Question": performance_data.get(
+                "current_q",
+                0
+            ),
+            "Score": round(score, 1),
+            "Feedback": latest_feedback
+        })
 
     # Learning summary
     st.markdown(
@@ -2072,7 +2126,7 @@ A quick overview of your current learning activity.
 
     st.write("")
 
-    # Performance chart section
+        # Performance chart section
     st.markdown(
         """
 <div style="
@@ -2094,13 +2148,27 @@ Your quiz results and performance trends will be shown here.
         unsafe_allow_html=True
     )
 
-    st.info(
-        "Complete a quiz to begin building your performance chart."
-    )
+    if student_records:
+        import pandas as pd
+
+        chart_df = pd.DataFrame(student_records)
+
+        chart_df = chart_df[
+            ["Quiz", "Score"]
+        ].set_index("Quiz")
+
+        st.line_chart(
+            chart_df,
+            use_container_width=True
+        )
+    else:
+        st.info(
+            "Complete a quiz to begin building your performance chart."
+        )
 
     st.write("")
 
-    # Attempt history section
+        # Attempt history section
     st.markdown(
         """
 <div style="
@@ -2122,59 +2190,107 @@ Review your completed quizzes, scores and recent activity.
         unsafe_allow_html=True
     )
 
-    st.info(
-        "No quiz attempts are available yet."
-    )
+    if student_records:
+        import pandas as pd
+
+        history_df = pd.DataFrame(student_records)
+
+        history_df["Score"] = history_df["Score"].map(
+            lambda value: f"{value:.1f}%"
+        )
+
+        st.dataframe(
+            history_df[
+                [
+                    "Quiz",
+                    "Current Question",
+                    "Score"
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info(
+            "No quiz attempts are available yet."
+        )
 
     st.write("")
 
-    # Feedback and reminder section
+        # Feedback and reminder section
     feedback_col, reminder_col = st.columns(2)
 
-    with feedback_col:
-        st.markdown(
-            """
-<div style="
-    background:#10233F;
-    border:1px solid #2E5D94;
-    border-radius:12px;
-    padding:18px;
-    min-height:155px;
-">
-<h3 style="margin-top:0; color:#FFFFFF;">
-🤖 AI Tutor Feedback
-</h3>
+    latest_score = (
+        student_records[-1]["Score"]
+        if student_records
+        else 0
+    )
 
-<p style="color:#AFC7E5;">
-Personalised strengths, improvement areas and learning advice will appear here after quiz completion.
-</p>
-</div>
-""",
-            unsafe_allow_html=True
-        )
+    latest_feedback = (
+        student_records[-1]["Feedback"]
+        if student_records
+        else ""
+    )
+
+    with feedback_col:
+        with st.container(border=True):
+            st.subheader("🤖 AI Tutor Feedback")
+
+            if latest_feedback:
+                st.info(latest_feedback)
+
+            elif latest_score >= 80:
+                st.success(
+                    "Excellent work. You demonstrated a strong "
+                    "understanding of the quiz material. Keep "
+                    "practising to maintain this result."
+                )
+
+            elif latest_score >= 50:
+                st.info(
+                    "Good progress. Review the questions that "
+                    "required more attempts and continue practising."
+                )
+
+            elif student_records:
+                st.warning(
+                    "Review this week's learning material before "
+                    "attempting the quiz again."
+                )
+
+            else:
+                st.info(
+                    "Personalised feedback will appear after "
+                    "quiz activity is recorded."
+                )
 
     with reminder_col:
-        st.markdown(
-            """
-<div style="
-    background:#10233F;
-    border:1px solid #2E5D94;
-    border-radius:12px;
-    padding:18px;
-    min-height:155px;
-">
-<h3 style="margin-top:0; color:#FFFFFF;">
-🔔 Learning Reminder
-</h3>
+        with st.container(border=True):
+            st.subheader("🔔 Learning Reminder")
 
-<p style="color:#AFC7E5;">
-Continue practising regularly to build confidence and improve your quiz performance.
-</p>
-</div>
-""",
-            unsafe_allow_html=True
-        )
+            if latest_score >= 80:
+                st.success(
+                    "Great result. Continue with the next quiz "
+                    "and practise regularly to maintain your progress."
+                )
 
+            elif latest_score >= 50:
+                st.info(
+                    "Review your previous feedback before starting "
+                    "the next quiz."
+                )
+
+            elif student_records:
+                st.warning(
+                    "Revisit the current topic and retry the quiz "
+                    "when you feel ready."
+                )
+
+            else:
+                st.info(
+                    "Complete a quiz to receive a personalised "
+                    "learning reminder."
+                )
     st.stop()
 elif st.session_state.page == 'student_post_survey':
     st.sidebar.empty()
