@@ -28,3 +28,8 @@ firebase-admin
 langchain-ollama
 langchain-openai
 google-generativeai
+
+# Explicit constraints to fix CI/CD dependency resolution
+grpcio>=1.64.0
+grpcio-status>=1.64.0
+protobuf>=4.25.0,<5.0.0
