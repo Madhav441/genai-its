@@ -7,6 +7,14 @@ from firebase_admin import credentials, firestore
 from progress_service import get_quizzes_completed, get_average_score, get_improvement_rate
 # Import the formatting utility for quiz context
 import sys
+
+#input sanitisation
+BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if BASE not in sys.path:
+    sys.path.append(BASE)
+
+from middleware.input_sanitizer import InputSanitizer
+
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
 from utils.format_quiz_context import format_quiz_context
 
@@ -1561,6 +1569,9 @@ Select a subject and week to begin or continue your quiz.
     # Prevent user_input from being undefined
     user_input = None
 
+    # Initialize end_quiz to None to prevent UnboundLocalError
+    end_quiz = None
+
     # -----------------------------
     # No quiz message
     # -----------------------------
@@ -1810,51 +1821,65 @@ Type your answer below. The AI tutor will provide feedback and guide you to the 
         # -----------------------------
         # Student answer input
         # -----------------------------
-        user_input = st.chat_input(
-            "Type your answer and press Enter..."
-        )
+        if 'sanitizer' not in st.session_state:
+            st.session_state.sanitizer = InputSanitizer()
+        sanitizer = st.session_state.sanitizer
 
-        if user_input:
-            # Allow student to leave using the word quit
-            if user_input.strip().lower() == "quit":
-                st.session_state.page = "main"
-                set_query_params()
-                st.rerun()
+        raw_user_input = st.chat_input("Type your answer and press Enter...")
 
-            chat_history.append(
-                {
-                    "role": "user",
-                    "content": user_input
-                }
-            )
+        if raw_user_input:
+            # 1. RUN SECURITY GATE FIRST
+            is_safe, reason = sanitizer.check_secondary_gate(raw_user_input)
 
-            try:
-                from quiz_agent import QuizAgent
+            if not is_safe:
+                # 2. TRIGGER RED BANNER GOVERNANCE
+                st.error(
+                    f"🚨 **Security Policy Violation**\n\n"
+                    f"Your input was intercepted and blocked.\n\n"
+                    f"**Reason:** {reason}"
+                )
+                st.stop()  # Prevents execution from reaching line 1918 where 'response' is referenced
+            else:
+                # 3. APPLY XML BOUNDING & CONTINUE
+                bounded_input = sanitizer.apply_xml_prompt_bounding(raw_user_input)
 
-            except ImportError:
-                import importlib
+                # Allow student to leave using the word quit
+                if raw_user_input.strip().lower() == "quit":
+                    st.session_state.page = "main"
+                    set_query_params()
+                    st.rerun()
 
-                quiz_agent_module = importlib.import_module(
-                    "quiz_agent"
+                # Save RAW input to chat history so the UI looks clean
+                chat_history.append(
+                    {
+                        "role": "user",
+                        "content": raw_user_input
+                    }
                 )
 
-                QuizAgent = quiz_agent_module.QuizAgent
+                try:
+                    from quiz_agent import QuizAgent
 
-            agent = QuizAgent(
-                quiz_data,
-                subject,
-                week,
-                st.session_state.student_id,
-                {}
-            )
+                except ImportError:
+                    import importlib
 
-            with st.spinner(
-                "CyberNexa is reviewing your answer..."
-            ):
-                response, end_quiz = agent.handle_input(
-                    user_input,
-                    chat_history
+                    quiz_agent_module = importlib.import_module("quiz_agent")
+                    QuizAgent = quiz_agent_module.QuizAgent
+
+                agent = QuizAgent(
+                    quiz_data,
+                    subject,
+                    week,
+                    st.session_state.student_id,
+                    {}
                 )
+
+                with st.spinner("CyberNexa is reviewing your answer..."):
+                    # Pass the BOUNDED input securely to the main AI model
+                    response, end_quiz = agent.handle_input(
+                        bounded_input,
+                        chat_history
+                    )
 
             # Move to post-quiz survey when the quiz finishes
             if end_quiz == "qualtrics2":
