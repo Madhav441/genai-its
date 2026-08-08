@@ -1,0 +1,25 @@
+# Never commit API keys, service-account credentials, the live item bank, or raw run outputs.
+# These entries are load-bearing for the redaction policy described in REPLICATION.md.
+
+# credentials
+.groq_key
+.firestore_key.json
+*.key
+*_key
+*.json
+.env
+.env.*
+
+# live assessment content (questions, reference answers, rubrics)
+items.csv
+
+# raw model outputs (contain disclosed solutions)
+results/raw_results.csv
+results_mock/
+human_codes.csv
+human_coding_sheet.csv
+# note: human_codes_redacted.csv and results/reliability_report.txt ARE published
+
+# python
+__pycache__/
+*.pyc
