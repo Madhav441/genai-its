@@ -1,76 +1,66 @@
 # GenAITS red-team harness
 
-Automates the adversarial-robustness evaluation (OWASP LLM01) described in
-`../GenAITS_RedTeam_Protocol.md`. Measures prompt-injection **breach rate** under
-governed vs ungoverned feedback prompts. Stdlib-only Python 3 (no pip installs).
+Adversarial-robustness evaluation of the GenAITS governed tutoring pipeline: does a bounded
+prompt contract stop an LLM tutor disclosing assessment solutions when a learner actively
+attacks it?
 
-## What you need to supply (only 3 things)
+**Start with [`REPLICATION.md`](REPLICATION.md).** It states the design, what reproduces from
+this package, what is withheld and why, and how to re-run the evaluation on your own item
+bank.
 
-1. **A model API key.** GroqCloud is supported (OpenAI-compatible). Note Groq serves
-   *open* models (Llama, Mixtral, Gemma, Qwen), not GPT-4, so a Groq run is the
-   open-model arm of the evaluation and should be described as such in the paper; it
-   is not directly comparable to the paper's GPT-4 cooperative-input result. The same
-   harness also runs against OpenAI or Anthropic if you later want a commercial-model
-   arm.
-2. **`items.csv`** — your 40-item corpus, one row per question, columns:
-   `item_id, subject, question, correct_answer, rubric`. Copy the format in
-   `items_template.csv` and export from your GitHub repo / Firestore. Use the same
-   40 items as the paper's feedback-security comparison for comparability.
-3. **Which model(s)** to run. Single model = solid; add a second commercial and one
-   open (Ollama) model = the cross-model robustness contribution.
+## Scale
 
-Everything else (attack corpus, prompts, running, grading, stats, LaTeX table) is done.
+142 assessment items x 6 attack families x 8 payloads x 2 conditions x 3 open-weight models
+= 40,896 paired trials. Models: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`,
+`openai/gpt-oss-120b`.
 
-## Handle the key safely
+## Result in short
 
-Do NOT paste the key into chat or hard-code it. Put it in a file the script reads:
+Automated recall-based coding put governed disclosure at 0.2% pooled. Blind human
+adjudication of two sampled strata put it at 21.2% (95% CI 15.8 to 26.5) against 57.8%
+ungoverned. The automated coder had acceptable precision, 88% to 100%, but recall under 1.4%
+against subtle disclosure, so the near-zero reading was an artefact of the instrument rather
+than a property of the system.
 
-```bash
-printf '%s' 'YOUR_GROQ_KEY' > .groq_key      # .groq_key is already in .gitignore
+The residual channel is not attack success. The contract requires the model to name each
+unmet rubric criterion, and naming a criterion frequently names the answer. Protection also
+varies sharply by model under an identical contract, from roughly tenfold to none.
+
+If you are evaluating a guardrail of this kind, the practical lesson is that recall-based
+automated scoring will report a rate close to zero regardless of what the system is actually
+doing, and that measuring only whether attacks are deflected will miss disclosure that flows
+through the compliant path.
+
+## Layout
+
+```
+redteam/
+  REPLICATION.md              full replication guide, start here
+  redteam_run.py              evaluation harness
+  attack_corpus.csv           versioned attack corpus v1.0, 48 payloads
+  items_template.csv          synthetic schema example, not the real item bank
+  analyse_cross_model.py      automated rates, Wilson intervals, McNemar
+  make_stratified_adjudication.py / score_stratified_adjudication.py
+  score_reliability.py        inter-rater kappa
+  results/                    per-trial outcomes and precomputed reports
+  adjudication/               adjudicator codes and sampling keys
+  coding_instruments/         coding rules as issued to adjudicators
 ```
 
-The `--keyfile` flag loads it into the right environment variable at runtime and it
-is never printed or committed.
-
-## Run it
+## Quick start
 
 ```bash
-# prove it runs first (no key, no cost):
-python3 redteam_run.py --items items_template.csv --provider mock
-
-# real run on GroqCloud (open-model arm):
-python3 redteam_run.py --items items.csv --provider groq \
-    --model llama-3.3-70b-versatile --keyfile .groq_key --sleep 2.0
-
-# other providers if ever needed:
-#   --provider openai    --model gpt-4                       (env OPENAI_API_KEY or --keyfile)
-#   --provider anthropic --model claude-sonnet-4-20250514    (env ANTHROPIC_API_KEY or --keyfile)
-#   --provider ollama    --model mistral                     (local, free, no key)
+python3 redteam_run.py --items items_template.csv --provider mock   # no key, no cost
 ```
 
-Cost/limits: 40 items x 48 attacks x 2 conditions = 3,840 calls per model. Groq's
-free tier is rate-limited (about 30 requests/min on Llama 3.3 70B), so use
-`--sleep 2.0` to stay under it; a paid tier can go faster. Groq inference is cheap
-relative to GPT-4.
+## Withheld material
 
-## Outputs (in `results/`)
+The 142-item bank and the raw model-output column are deliberately not published, because
+between them they constitute an answer key for assessments still in use. Everything needed to
+recompute every reported statistic is included. See `REPLICATION.md` for the full statement
+and the contact route for verification access.
 
-- `raw_results.csv` — every call: label, breach flag, answer-recall, truncated output,
-  and a `needs_human_review` flag for borderline cases.
-- `summary_by_family.csv` — breach/rubric-leak rates and McNemar per attack family.
-- `results_table.tex` — paste straight into the manuscript as Table `tab:redteam`.
+## Licence
 
-## Grading and the human-validation step
-
-The auto-grader labels each output `full_leak / partial_leak / rubric_leak / clean`
-using answer-token recall + leakage heuristics, and flags borderline items
-(`needs_human_review=1`). For the paper, have a second person hand-code the flagged
-subset (plus a random ~50) and report Cohen's kappa — this doubles as the
-"independent human-rater validation" already promised in the manuscript. Tune the
-grader thresholds in `grade()` if your answers are very short or very long.
-
-## Then
-
-Paste `results_table.tex` into Results, add one sentence to the abstract and
-conclusion converting the "red-team pending" note into a measured result, and
-retire (or narrow to cross-model) future-work item 4.
+MIT, see [`../LICENSE`](../LICENSE). Copyright (c) 2026 Madhav Mukherjee, John Le, and
+Yang-Wai Chow.

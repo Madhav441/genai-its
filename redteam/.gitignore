@@ -1,4 +1,5 @@
-# Never commit API keys, service-account credentials, the live item bank, or raw run outputs.
+# Never commit API keys, service-account credentials, the live item bank, or any file
+# carrying question / reference-answer / rubric / model-output text.
 # These entries are load-bearing for the redaction policy described in REPLICATION.md.
 
 # credentials
@@ -15,10 +16,21 @@ items.csv
 
 # raw model outputs (contain disclosed solutions)
 results/raw_results.csv
-results_mock/
+results_*/
 human_codes.csv
 human_coding_sheet.csv
-# note: human_codes_redacted.csv and results/reliability_report.txt ARE published
+
+# blinded coding sheets: these carry question, reference_answer and model_output
+# columns as issued to the adjudicators. The codes they returned are published in
+# adjudication/ with those columns stripped; the sheets themselves are not.
+*_sheet.csv
+adjudication_*_sheet.csv
+reliability_coder2_sheet.csv
+
+# published deliberately, listed here so the exclusions above are not read too broadly:
+#   results/raw_results_redacted.csv   per-trial outcomes, output column stripped
+#   adjudication/*.csv                 adjudicator codes plus sampling keys
+#   results/*.txt                      precomputed analysis reports
 
 # python
 __pycache__/

@@ -1,0 +1,52 @@
+==============================================================================
+CROSS-MODEL ADVERSARIAL ROBUSTNESS SUMMARY
+==============================================================================
+
+MODEL: llama-3.3-70b-versatile
+  paired trials per condition : 6816
+  governed breaches           : 0/6816 = 0.0%  (95% CI 0.0 to 0.1%)
+  ungoverned breaches         : 3904/6816 = 57.3%  (95% CI 56.1 to 58.4%)
+  McNemar (b=3904, c=0)       : chi2=3902.0  p=<10^{-850}
+  by family:
+    Direct instruction override            gov   0.0%  ung  56.4%  p=5.509e-141  (n=1136)
+    Role / persona hijack                  gov   0.0%  ung  65.1%  p=1.631e-162  (n=1136)
+    Rubric / system-prompt exfiltration    gov   0.0%  ung  56.8%  p=7.433e-142  (n=1136)
+    Indirect injection (ingested content)  gov   0.0%  ung  60.4%  p=9.011e-151  (n=1136)
+    Encoding / obfuscation                 gov   0.0%  ung  44.2%  p=9.496e-111  (n=1136)
+    Social engineering                     gov   0.0%  ung  60.7%  p=1.216e-151  (n=1136)
+
+MODEL: openai/gpt-oss-120b
+  paired trials per condition : 6816
+  governed breaches           : 28/6816 = 0.4%  (95% CI 0.3 to 0.6%)
+  ungoverned breaches         : 4535/6816 = 66.5%  (95% CI 65.4 to 67.6%)
+  McNemar (b=4512, c=5)       : chi2=4495.0  p=<10^{-979}
+  by family:
+    Direct instruction override            gov   0.4%  ung  63.2%  p=5.352e-156  (n=1136)
+    Role / persona hijack                  gov   0.6%  ung  73.6%  p=1.970e-181  (n=1136)
+    Rubric / system-prompt exfiltration    gov   0.2%  ung  68.7%  p=8.911e-171  (n=1136)
+    Indirect injection (ingested content)  gov   0.5%  ung  64.2%  p=5.909e-158  (n=1136)
+    Encoding / obfuscation                 gov   0.5%  ung  61.5%  p=2.707e-152  (n=1136)
+    Social engineering                     gov   0.3%  ung  68.0%  p=4.890e-169  (n=1136)
+
+MODEL: llama-3.1-8b-instant
+  paired trials per condition : 6816
+  governed breaches           : 10/6816 = 0.1%  (95% CI 0.1 to 0.3%)
+  ungoverned breaches         : 4044/6816 = 59.3%  (95% CI 58.2 to 60.5%)
+  McNemar (b=4036, c=2)       : chi2=4028.0  p=<10^{-877}
+  by family:
+    Direct instruction override            gov   0.0%  ung  56.7%  p=1.226e-141  (n=1136)
+    Role / persona hijack                  gov   0.4%  ung  66.8%  p=1.473e-165  (n=1136)
+    Rubric / system-prompt exfiltration    gov   0.0%  ung  60.9%  p=4.467e-152  (n=1136)
+    Indirect injection (ingested content)  gov   0.2%  ung  60.4%  p=6.639e-150  (n=1136)
+    Encoding / obfuscation                 gov   0.1%  ung  47.1%  p=2.801e-117  (n=1136)
+    Social engineering                     gov   0.2%  ung  64.1%  p=1.805e-159  (n=1136)
+
+==============================================================================
+SENTENCES YOU CAN QUOTE IN THE MANUSCRIPT
+==============================================================================
+
+  llama-3.3-70b-versatile: the governed pipeline recorded 0 breaches in 6816 trials (0.0%, 95% CI 0.0 to 0.1%), against 57.3% ungoverned (3904/6816, CI 56.1 to 58.5%); McNemar p = <10^{-850}.
+
+  openai/gpt-oss-120b: the governed pipeline recorded 28 breaches in 6816 trials (0.4%, 95% CI 0.3 to 0.6%), against 66.5% ungoverned (4535/6816, CI 65.4 to 67.7%); McNemar p = <10^{-979}.
+
+  llama-3.1-8b-instant: the governed pipeline recorded 10 breaches in 6816 trials (0.1%, 95% CI 0.1 to 0.3%), against 59.3% ungoverned (4044/6816, CI 58.2 to 60.5%); McNemar p = <10^{-877}.
