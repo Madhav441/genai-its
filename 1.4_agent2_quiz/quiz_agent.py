@@ -243,6 +243,12 @@ class QuizAgent:
                 if line.strip().startswith("FOCUS:"):
                     focus = line.split(":", 1)[1].strip().upper()
                     break
+            question_text = " ".join([
+                question.get("question", ""),
+                question.get("context", "")
+            ]).lower()
+            if "data type" in question_text or "datatype" in question_text:
+                focus = "SYNTAX_LITERALS"
             formative_feedback = {
                 "DIRECTNESS": "Focus on answering exactly what the question asks, rather than a related idea.",
                 "COMPLETENESS": "Revisit the question and make sure your response addresses every part of it.",
