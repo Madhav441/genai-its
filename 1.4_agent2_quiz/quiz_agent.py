@@ -215,6 +215,8 @@ class QuizAgent:
             "FEEDBACK RULES:\n"
             "- Assess the submitted answer against the private rubric.\n"
             "- For a correct or mostly correct answer, start with exactly 'Correct:' and give a brief high-level acknowledgement.\n"
+            "- Then add one concise sentence beginning 'Related note:' that connects the underlying topic to a domain-relevant use, best practice, or real-world application.\n"
+            "- The related note must be educational but must not provide a worked solution, restate the expected answer, or introduce new answer requirements.\n"
             "- For an incorrect answer, do not write feedback prose. Select exactly one safe focus label:\n"
             "  DIRECTNESS (the response does not address the task), COMPLETENESS (part of the task is not addressed),\n"
             "  SYNTAX_LITERALS (the code notation or value representation needs review), CONCEPTUAL_ACCURACY (the underlying rule is not applied accurately),\n"
