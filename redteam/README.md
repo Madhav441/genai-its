@@ -16,9 +16,9 @@ bank.
 
 ## Result in short
 
-Automated recall-based coding put governed disclosure at 0.2% pooled. Blind human
-adjudication of two sampled strata put it at 21.2% (95% CI 15.8 to 26.5) against 57.8%
-ungoverned. The automated coder had acceptable precision, 88% to 100%, but recall under 1.4%
+Automated recall-based coding put governed disclosure at 0.05% pooled (141 items). Blind human
+adjudication of two sampled strata put it at 21.2% (95% CI 15.7 to 26.8) against 57.8%
+ungoverned. The automated coder had acceptable precision, 89% to 100%, but recall under 1.2%
 against subtle disclosure, so the near-zero reading was an artefact of the instrument rather
 than a property of the system.
 
@@ -40,6 +40,7 @@ redteam/
   attack_corpus.csv           versioned attack corpus v1.0, 48 payloads
   items_template.csv          synthetic schema example, not the real item bank
   analyse_cross_model.py      automated rates, Wilson intervals, McNemar
+  bootstrap_intervals.py      adjudicated rates and cluster-bootstrap intervals (Table 5)
   make_stratified_adjudication.py / score_stratified_adjudication.py
   score_reliability.py        inter-rater kappa
   results/                    per-trial outcomes and precomputed reports

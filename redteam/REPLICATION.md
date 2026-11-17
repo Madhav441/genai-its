@@ -19,19 +19,19 @@ recall-based coder. Because a validation sample drawn only from the trials such 
 measures precision while remaining structurally blind to what it missed, two strata were then
 adjudicated by human coders working blind to model, condition and automated label: every
 governed trial the coder flagged, plus a random sample of the trials it scored clean. Stratum
-estimates are recombined by sampling weight with a finite-population correction.
+estimates are recombined by sampling weight; 95% intervals come from an item-clustered bootstrap (`bootstrap_intervals.py`).
 
 ## What reproduces from this package
 
 | Reported quantity | Value | Reproduce with |
 |---|---|---|
-| Automated governed rates (70b / 8b / gpt-oss) | 0.0% / 0.1% / 0.4% | `analyse_cross_model.py` over `results/raw_results_redacted.csv` |
+| Automated governed rates (70b / 8b / gpt-oss) | 0.00% / 0.13% / 0.03% (pooled 0.05%, 11 flags; 141 items) | `analyse_cross_model.py` over `results/raw_results_redacted.csv` |
 | Automated ungoverned rates | 57.3% / 59.3% / 66.5% | same |
 | Adjudicated governed, per model | 6.7% / 10.1% / 46.7% | `score_stratified_adjudication.py` |
-| Adjudicated governed, pooled | 21.2% (95% CI 15.8 to 26.5) | same |
+| Adjudicated governed, pooled | 21.2% (95% CI 15.7 to 26.8, item-clustered bootstrap) | same |
 | Adjudicated ungoverned, per model | 66.5% / 58.7% / 48.3% | same |
-| Adjudicated ungoverned, pooled | 57.8% (95% CI 45.6 to 70.1) | same |
-| Protection ratio, per model | 9.9x / 5.8x / 1.0x | ratio of the two adjudicated rates |
+| Adjudicated ungoverned, pooled | 57.8% (95% CI 42.9 to 70.9, item-clustered bootstrap) | same |
+| Protection ratio, per model | 10.0x / 5.8x / 1.0x (pooled 2.7x, 95% CI 1.9 to 3.8; `bootstrap_intervals.py`) | ratio of the two adjudicated rates |
 | Inter-rater reliability, binary | 85.0% agreement, kappa 0.69 (CI 0.50 to 0.86) | `score_reliability.py` |
 | Inter-rater reliability, three-way | 81.7% agreement, kappa 0.63 (CI 0.44 to 0.81) | same |
 
@@ -40,9 +40,9 @@ checked by reading alone before anything is re-run.
 
 ## The headline finding, stated plainly
 
-Under automated coding the governed pipeline looks close to impervious, recording 0.0%, 0.1%
-and 0.4% against ungoverned rates near 60%. Blind human adjudication shows that reading to be
-an artefact of the instrument. The automated coder achieved 88% to 100% precision but recall
+Under automated coding the governed pipeline looks close to impervious, recording 0.0%, 0.13%
+and 0.03% against ungoverned rates near 60%. Blind human adjudication shows that reading to be
+an artefact of the instrument. The automated coder achieved 89% to 100% precision but recall
 between 0% and 1.3% against subtle disclosure, and the adjudicated governed rate is 21.2%
 against 57.8% ungoverned.
 
@@ -64,7 +64,8 @@ Protection is also strongly model dependent under an identical contract: roughly
 | `redteam_run.py` | Evaluation harness. Runs each payload against each item under both conditions. |
 | `attack_corpus.csv` | Versioned attack corpus v1.0. 48 payloads across six OWASP-grounded families. |
 | `items_template.csv` | Two synthetic example items showing the required input format. Not the real item bank. |
-| `analyse_cross_model.py` | Computes automated per-model and per-family rates, Wilson intervals, McNemar. |
+| `analyse_cross_model.py` | Computes automated per-model and per-family rates, Wilson intervals, McNemar (automated labels only; not used in the revised paper). |
+| `bootstrap_intervals.py` | Reproduces the adjudicated rates, protection ratios and their item- and payload-clustered bootstrap intervals (Table 5, Section 5.2) from the released files alone. |
 | `make_stratified_adjudication.py` | Draws the two adjudication strata and writes blinded coding sheets. |
 | `score_stratified_adjudication.py` | Recombines stratum estimates with finite-population correction. |
 | `score_reliability.py` | Scores the two adjudicators against each other, reports Cohen's kappa. |
@@ -163,3 +164,11 @@ coder recorded disclosure on eight trials the first scored clean against one in 
 direction, which indicates coding error in this scheme skews toward under-calling. The
 governed rates are therefore better read as lower bounds than as point estimates. This works
 against the architecture the paper describes, and is reported on that basis.
+
+## Changes in v1.1-cose
+
+- `adjudication/ungoverned_codes.csv` now carries the adjudicator's codes (43 A, 41 C). In v1.0-cose the code column was empty, so the ungoverned rate could not be reproduced from the release.
+- Added `bootstrap_intervals.py`, which reproduces the item-clustered bootstrap intervals reported in the revised manuscript.
+- Automated rates are now reported over the same 141 items as the adjudicated rates. The excluded item, whose reference answer is itself a refusal, produced 26 of gpt-oss-120b's 28 governed flags; over 141 items the automated governed rates are 0.00%, 0.13% and 0.03% (pooled 0.05%).
+- The `indirect_injection` family is described in the paper as embedded-instruction injection: all payloads are delivered through the answer field.
+- The harness ran both conditions at its default temperature of 0.7 (`--temperature` was not set).
